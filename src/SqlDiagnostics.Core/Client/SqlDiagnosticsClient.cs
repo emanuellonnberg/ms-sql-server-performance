@@ -1,5 +1,4 @@
 using System;
-using System.Data.SqlClient;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -10,6 +9,7 @@ using SqlDiagnostics.Diagnostics.Server;
 using SqlDiagnostics.Models;
 using SqlDiagnostics.Reports;
 using SqlDiagnostics.Utilities;
+using Microsoft.Data.SqlClient;
 
 namespace SqlDiagnostics.Client;
 
@@ -131,7 +131,11 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
     public ValueTask DisposeAsync()
     {
         Dispose();
+#if NETSTANDARD2_0
+        return new ValueTask();
+#else
         return ValueTask.CompletedTask;
+#endif
     }
 
     public void Dispose()

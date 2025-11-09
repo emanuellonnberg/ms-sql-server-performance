@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Data.SqlClient;
 using SqlDiagnostics.Models;
 using SqlDiagnostics.Utilities;
 

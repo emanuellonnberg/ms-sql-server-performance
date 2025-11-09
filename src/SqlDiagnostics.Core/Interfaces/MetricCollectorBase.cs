@@ -1,8 +1,8 @@
 using System;
-using System.Data.SqlClient;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Data.SqlClient;
 
 namespace SqlDiagnostics.Interfaces;
 

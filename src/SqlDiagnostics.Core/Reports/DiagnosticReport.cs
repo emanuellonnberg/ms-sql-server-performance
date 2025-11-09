@@ -9,8 +9,8 @@ namespace SqlDiagnostics.Reports;
 /// </summary>
 public sealed class DiagnosticReport
 {
-    public DateTime GeneratedAtUtc { get; init; } = DateTime.UtcNow;
-    public string? TargetDataSource { get; init; }
+    public DateTime GeneratedAtUtc { get; set; } = DateTime.UtcNow;
+    public string? TargetDataSource { get; set; }
     public ConnectionMetrics? Connection { get; set; }
     public LatencyMetrics? Network { get; set; }
     public QueryMetrics? Query { get; set; }
@@ -24,11 +24,11 @@ public sealed class DiagnosticReport
 /// </summary>
 public sealed class Recommendation
 {
-    public RecommendationSeverity Severity { get; init; } = RecommendationSeverity.Info;
-    public string Category { get; init; } = string.Empty;
-    public string Issue { get; init; } = string.Empty;
-    public string RecommendationText { get; init; } = string.Empty;
-    public string? ReferenceLink { get; init; }
+    public RecommendationSeverity Severity { get; set; } = RecommendationSeverity.Info;
+    public string Category { get; set; } = string.Empty;
+    public string Issue { get; set; } = string.Empty;
+    public string RecommendationText { get; set; } = string.Empty;
+    public string? ReferenceLink { get; set; }
 }
 
 public enum RecommendationSeverity

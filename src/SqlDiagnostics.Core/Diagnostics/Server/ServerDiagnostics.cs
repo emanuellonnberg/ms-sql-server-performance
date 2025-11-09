@@ -1,11 +1,11 @@
 using System;
 using System.Data;
-using System.Data.SqlClient;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SqlDiagnostics.Interfaces;
 using SqlDiagnostics.Models;
+using Microsoft.Data.SqlClient;
 
 namespace SqlDiagnostics.Diagnostics.Server;
 
