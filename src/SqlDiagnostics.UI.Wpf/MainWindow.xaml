@@ -1,0 +1,130 @@
+<Window x:Class="SqlDiagnostics.UI.Wpf.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:SqlDiagnostics.UI.Wpf.ViewModels"
+        mc:Ignorable="d"
+        Title="SQL Diagnostics Monitor"
+        Height="520" Width="880">
+    <Window.DataContext>
+        <vm:RealtimeDiagnosticsViewModel />
+    </Window.DataContext>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="12" Background="#f7f9fc" CornerRadius="6" BorderBrush="#d0d7e3" BorderThickness="1">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                <TextBlock Text="Connection String:" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                <TextBox Width="500"
+                         Text="{Binding ConnectionString, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="SQL Server connection string" />
+                <Button Content="Start"
+                        Width="80"
+                        Margin="12,0,0,0"
+                        Command="{Binding StartCommand}"
+                        IsEnabled="{Binding IsStartEnabled}" />
+                <Button Content="Stop"
+                        Width="80"
+                        Command="{Binding StopCommand}"
+                        IsEnabled="{Binding IsMonitoring}" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="0,16,0,0">
+            <TextBlock Text="{Binding StatusMessage}" FontSize="14" FontWeight="SemiBold"/>
+            <TextBlock Text="{Binding LastUpdatedDisplay}" Foreground="Gray"/>
+        </StackPanel>
+
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Padding="16" Background="White" CornerRadius="6" BorderBrush="#d0d7e3" BorderThickness="1" Margin="0,0,12,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Connection Metrics" FontSize="16" FontWeight="SemiBold"/>
+
+                    <UniformGrid Grid.Row="1" Columns="2" Margin="0,12,0,0" HorizontalAlignment="Left">
+                        <StackPanel Margin="0,0,12,12">
+                            <TextBlock Text="Success Rate" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding SuccessRateDisplay}" FontSize="16"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,12">
+                            <TextBlock Text="Attempts (Success / Fail)" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding AttemptSummary}" FontSize="16"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,12">
+                            <TextBlock Text="Avg Connect Time" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding AverageConnectionTimeDisplay}" FontSize="16"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,12,12">
+                            <TextBlock Text="Min / Max" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding MinMaxConnectionDisplay}" FontSize="16"/>
+                        </StackPanel>
+                    </UniformGrid>
+
+                    <Separator Grid.Row="2" Margin="0,16,0,16"/>
+
+                    <StackPanel Grid.Row="3">
+                        <TextBlock Text="Network Metrics" FontSize="16" FontWeight="SemiBold"/>
+                        <UniformGrid Columns="3" Margin="0,12,0,0">
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="Avg RTT" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding NetworkLatencyDisplay}" FontSize="16"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="Jitter" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding NetworkJitterDisplay}" FontSize="16"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Status" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding NetworkStatus}" FontSize="16"/>
+                            </StackPanel>
+                        </UniformGrid>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Padding="16" Background="White" CornerRadius="6" BorderBrush="#d0d7e3" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="Recommendations" FontSize="16" FontWeight="SemiBold"/>
+                    <ItemsControl ItemsSource="{Binding Recommendations}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="8" Margin="0,0,0,8" Background="#f3f6fb" CornerRadius="4">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding Message}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasRecommendations}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                    </ItemsControl>
+                    <TextBlock Text="No recommendations yet." Foreground="Gray" Visibility="{Binding NoRecommendationsVisibility}" Margin="0,12,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
