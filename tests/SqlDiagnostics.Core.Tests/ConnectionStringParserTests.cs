@@ -1,4 +1,4 @@
-using SqlDiagnostics.Utilities;
+using SqlDiagnostics.Core.Utilities;
 using Xunit;
 
 namespace SqlDiagnostics.Core.Tests;

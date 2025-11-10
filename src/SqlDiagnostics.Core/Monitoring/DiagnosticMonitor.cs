@@ -2,17 +2,18 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SqlDiagnostics.Client;
-using SqlDiagnostics.Reports;
+using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Reports;
+using CoreClient = SqlDiagnostics.Core.SqlDiagnosticsClient;
 
-namespace SqlDiagnostics.Monitoring;
+namespace SqlDiagnostics.Core.Monitoring;
 
 /// <summary>
 /// Periodically executes diagnostics and emits snapshot events that can be consumed by UI layers.
 /// </summary>
 public sealed class DiagnosticMonitor : IAsyncDisposable, IDisposable
 {
-    private readonly SqlDiagnosticsClient _client;
+    private readonly CoreClient _client;
     private readonly bool _clientProvided;
     private readonly ILogger? _logger;
 
@@ -20,17 +21,17 @@ public sealed class DiagnosticMonitor : IAsyncDisposable, IDisposable
     private Task? _monitorTask;
     private readonly object _gate = new();
 
-    public DiagnosticMonitor(SqlDiagnosticsClient? client = null, ILogger? logger = null)
+    public DiagnosticMonitor(CoreClient? client = null, ILogger? logger = null)
     {
         _clientProvided = client is not null;
-        _client = client ?? new SqlDiagnosticsClient();
+        _client = client ?? new CoreClient();
         _logger = logger;
     }
 
     /// <summary>
     /// Raised whenever a new snapshot is produced.
     /// </summary>
-    public event EventHandler<DiagnosticReport>? SnapshotAvailable;
+    public event EventHandler<DiagnosticSnapshot>? SnapshotAvailable;
 
     /// <summary>
     /// Raised when an exception occurs while collecting diagnostics.
@@ -49,6 +50,7 @@ public sealed class DiagnosticMonitor : IAsyncDisposable, IDisposable
     public Task StartAsync(
         string connectionString,
         TimeSpan interval,
+        DiagnosticOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -69,7 +71,9 @@ public sealed class DiagnosticMonitor : IAsyncDisposable, IDisposable
             }
 
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _monitorTask = Task.Run(() => MonitorLoopAsync(connectionString, interval, _cts.Token), CancellationToken.None);
+            _monitorTask = Task.Run(
+                () => MonitorLoopAsync(connectionString, interval, options?.Clone(), _cts.Token),
+                CancellationToken.None);
         }
 
         return Task.CompletedTask;
@@ -105,7 +109,11 @@ public sealed class DiagnosticMonitor : IAsyncDisposable, IDisposable
         }
     }
 
-    private async Task MonitorLoopAsync(string connectionString, TimeSpan interval, CancellationToken cancellationToken)
+    private async Task MonitorLoopAsync(
+        string connectionString,
+        TimeSpan interval,
+        DiagnosticOptions? options,
+        CancellationToken cancellationToken)
     {
         var timerDelay = interval;
 
@@ -113,8 +121,17 @@ public sealed class DiagnosticMonitor : IAsyncDisposable, IDisposable
         {
             try
             {
-                var report = await _client.RunQuickCheckAsync(connectionString, cancellationToken).ConfigureAwait(false);
-                SnapshotAvailable?.Invoke(this, report);
+                DiagnosticReport report;
+                if (options is null)
+                {
+                    report = await _client.RunQuickCheckAsync(connectionString, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    report = await _client.RunFullDiagnosticsAsync(connectionString, options, cancellationToken).ConfigureAwait(false);
+                }
+
+                SnapshotAvailable?.Invoke(this, new DiagnosticSnapshot(DateTime.UtcNow, report));
             }
             catch (OperationCanceledException)
             {

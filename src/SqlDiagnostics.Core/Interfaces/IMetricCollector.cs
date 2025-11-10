@@ -2,7 +2,7 @@ using Microsoft.Data.SqlClient;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace SqlDiagnostics.Interfaces;
+namespace SqlDiagnostics.Core.Interfaces;
 
 /// <summary>
 /// Contract for a diagnostics component that produces a metric payload from an opened connection.

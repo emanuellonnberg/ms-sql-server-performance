@@ -5,10 +5,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
-using SqlDiagnostics.Interfaces;
-using SqlDiagnostics.Models;
+using SqlDiagnostics.Core.Interfaces;
+using SqlDiagnostics.Core.Models;
 
-namespace SqlDiagnostics.Diagnostics.Database;
+namespace SqlDiagnostics.Core.Diagnostics.Database;
 
 /// <summary>
 /// Collects per-database state and usage metrics from SQL Server dynamic management views.

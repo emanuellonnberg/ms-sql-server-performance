@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using SqlDiagnostics.Client;
+using SqlDiagnostics.Core;
 
 namespace SqlDiagnostics.Samples;
 

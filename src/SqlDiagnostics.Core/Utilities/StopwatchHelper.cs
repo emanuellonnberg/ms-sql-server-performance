@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
-namespace SqlDiagnostics.Utilities;
+namespace SqlDiagnostics.Core.Utilities;
 
 /// <summary>
 /// Helper for measuring elapsed time of asynchronous operations.

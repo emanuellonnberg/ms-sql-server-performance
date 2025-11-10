@@ -2,12 +2,12 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
-using SqlDiagnostics.Client;
-using SqlDiagnostics.Diagnostics.Connection;
-using SqlDiagnostics.Diagnostics.Network;
-using SqlDiagnostics.Interfaces;
-using SqlDiagnostics.Models;
-using SqlDiagnostics.Utilities;
+using SqlDiagnostics.Core;
+using SqlDiagnostics.Core.Diagnostics.Connection;
+using SqlDiagnostics.Core.Diagnostics.Network;
+using SqlDiagnostics.Core.Interfaces;
+using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Utilities;
 using Xunit;
 
 namespace SqlDiagnostics.Core.Tests;
@@ -89,6 +89,30 @@ public class GuardClauseTests
         await using var client = new SqlDiagnosticsClient();
 
         await Assert.ThrowsAsync<ArgumentException>(() => client.RunQuickCheckAsync(" "));
+    }
+
+    [Fact]
+    public void SqlDiagnosticsClient_MonitorContinuously_WithBlankConnection_Throws()
+    {
+        using var client = new SqlDiagnosticsClient();
+
+        Assert.Throws<ArgumentException>(() => client.MonitorContinuously(" ", TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
+    public void SqlDiagnosticsClient_MonitorContinuously_WithNonPositiveInterval_Throws()
+    {
+        using var client = new SqlDiagnosticsClient();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => client.MonitorContinuously("Server=.;Database=master;", TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void SqlDiagnosticsClient_RegisterRecommendationRule_WithNull_Throws()
+    {
+        using var client = new SqlDiagnosticsClient();
+
+        Assert.Throws<ArgumentNullException>(() => client.RegisterRecommendationRule(null!));
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SqlDiagnostics.Models;
+namespace SqlDiagnostics.Core.Models;
 
 /// <summary>
 /// Aggregates dynamic management view information from the SQL Server instance.
@@ -12,6 +12,7 @@ public sealed class ServerMetrics
     public IReadOnlyDictionary<string, object> AdditionalProperties => _additionalProperties;
     public IList<WaitStatistic> Waits { get; } = new List<WaitStatistic>();
     public IList<PerformanceCounterMetric> PerformanceCounters { get; } = new List<PerformanceCounterMetric>();
+    public IList<ServerConfigurationSetting> Configuration { get; } = new List<ServerConfigurationSetting>();
 
     private readonly Dictionary<string, object> _additionalProperties = new(StringComparer.OrdinalIgnoreCase);
 
@@ -60,4 +61,22 @@ public sealed class PerformanceCounterMetric
     public double Value { get; set; }
     public string? ObjectName { get; set; }
     public int CounterType { get; set; }
+}
+
+/// <summary>
+/// Represents a server configuration item (sp_configure).
+/// </summary>
+public sealed class ServerConfigurationSetting
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public double? Value { get; set; }
+
+    public double? ValueInUse { get; set; }
+
+    public bool IsAdvanced { get; set; }
+
+    public string? Recommendation { get; set; }
 }
