@@ -70,11 +70,11 @@ internal static class Program
             }
             else if (args[i].StartsWith($"{ConnectionOption}=", StringComparison.OrdinalIgnoreCase))
             {
-                return args[i][ConnectionOption.Length + 1..];
+                return args[i][(ConnectionOption.Length + 1)..];
             }
             else if (args[i].StartsWith($"{ConnectionShortOption}=", StringComparison.OrdinalIgnoreCase))
             {
-                return args[i][ConnectionShortOption.Length + 1..];
+                return args[i][(ConnectionShortOption.Length + 1)..];
             }
         }
 
