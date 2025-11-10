@@ -21,11 +21,13 @@ public class DiagnosticOptionsBuilderTests
         var options = new DiagnosticOptionsBuilder()
             .WithConnectionTests()
             .WithNetworkTests()
+            .WithServerHealth()
             .Build();
 
         Assert.True(options.Categories.HasFlag(DiagnosticCategories.Connection));
         Assert.True(options.Categories.HasFlag(DiagnosticCategories.Network));
-        Assert.False(options.Categories.HasFlag(DiagnosticCategories.Server));
+        Assert.True(options.Categories.HasFlag(DiagnosticCategories.Server));
+        Assert.True(options.Categories.HasFlag(DiagnosticCategories.Database));
     }
 
     [Fact]

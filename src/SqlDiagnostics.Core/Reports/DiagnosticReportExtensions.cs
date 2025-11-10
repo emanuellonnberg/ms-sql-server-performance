@@ -14,11 +14,20 @@ namespace SqlDiagnostics.Core.Reports;
 /// </summary>
 public static class DiagnosticReportExtensions
 {
-    internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.General)
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
-    };
+    internal static readonly JsonSerializerOptions JsonOptions =
+#if NETSTANDARD2_0
+        new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Converters = { new JsonStringEnumConverter() }
+        };
+#else
+        new(JsonSerializerDefaults.General)
+        {
+            WriteIndented = true,
+            Converters = { new JsonStringEnumConverter() }
+        };
+#endif
 
     public static async Task ExportToJsonAsync(
         this DiagnosticReport report,
@@ -38,7 +47,7 @@ public static class DiagnosticReportExtensions
         EnsureDirectoryExists(filePath);
 
         var payload = BuildJson(report);
-        await File.WriteAllTextAsync(filePath, payload, cancellationToken).ConfigureAwait(false);
+        await WriteTextAsync(filePath, payload, cancellationToken).ConfigureAwait(false);
     }
 
     public static async Task ExportToHtmlAsync(
@@ -59,7 +68,7 @@ public static class DiagnosticReportExtensions
         EnsureDirectoryExists(filePath);
 
         var builder = BuildHtml(report);
-        await File.WriteAllTextAsync(filePath, builder, cancellationToken).ConfigureAwait(false);
+        await WriteTextAsync(filePath, builder, cancellationToken).ConfigureAwait(false);
     }
 
     public static string ToMarkdown(this DiagnosticReport report)
@@ -83,7 +92,7 @@ public static class DiagnosticReportExtensions
 
         if (report.Connection is not null)
         {
-            var successRate = Math.Clamp(report.Connection.SuccessRate, 0, 1);
+        var successRate = Clamp(report.Connection.SuccessRate, 0d, 1d);
             score -= (1 - successRate) * 40;
 
             if (report.Connection.AverageConnectionTime is { } avg)
@@ -111,7 +120,7 @@ public static class DiagnosticReportExtensions
             score -= criticalPenalty + warningPenalty;
         }
 
-        return (int)Math.Clamp(Math.Round(score), 0, 100);
+        return (int)Math.Max(0, Math.Min(100, Math.Round(score)));
     }
 
     internal static string BuildJson(DiagnosticReport report) =>
@@ -226,8 +235,42 @@ public static class DiagnosticReportExtensions
     private static string Row(string header, string? value) =>
         $"<tr><th>{Escape(header)}</th><td>{Escape(value ?? "—")}</td></tr>";
 
-    private static string Escape(string value) =>
-        value.Replace("&", "&amp;", StringComparison.Ordinal)
-             .Replace("<", "&lt;", StringComparison.Ordinal)
-             .Replace(">", "&gt;", StringComparison.Ordinal);
+    private static string Escape(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value
+            .Replace("&", "&amp;")
+            .Replace("<", "&lt;")
+            .Replace(">", "&gt;");
+    }
+
+    private static async Task WriteTextAsync(string filePath, string content, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+#if NETSTANDARD2_0
+        using var writer = new StreamWriter(filePath, append: false, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        await writer.WriteAsync(content).ConfigureAwait(false);
+#else
+        await File.WriteAllTextAsync(filePath, content, cancellationToken).ConfigureAwait(false);
+#endif
+    }
+
+    private static double Clamp(double value, double min, double max)
+    {
+        if (value < min)
+        {
+            return min;
+        }
+
+        if (value > max)
+        {
+            return max;
+        }
+
+        return value;
+    }
 }

@@ -9,6 +9,7 @@ using SqlDiagnostics.Core.Diagnostics.Network;
 using SqlDiagnostics.Core.Diagnostics.Query;
 using SqlDiagnostics.Core.Diagnostics.Server;
 using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Monitoring;
 using SqlDiagnostics.Core.Reports;
 using SqlDiagnostics.Core.Utilities;
 using Microsoft.Data.SqlClient;
@@ -351,6 +352,9 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
                     }
 
                     _observer.OnCompleted();
+                }
+                finally
+                {
                     Cleanup();
                 }
             }
