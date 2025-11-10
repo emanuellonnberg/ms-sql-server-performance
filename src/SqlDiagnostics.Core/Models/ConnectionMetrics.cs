@@ -19,7 +19,15 @@ public sealed class ConnectionMetrics
 
     private readonly List<ConnectionFailure> _failures = new();
 
-    public void AddFailure(ConnectionFailure failure) => _failures.Add(failure);
+    public void AddFailure(ConnectionFailure failure)
+    {
+        if (failure is null)
+        {
+            throw new ArgumentNullException(nameof(failure));
+        }
+
+        _failures.Add(failure);
+    }
 }
 
 /// <summary>

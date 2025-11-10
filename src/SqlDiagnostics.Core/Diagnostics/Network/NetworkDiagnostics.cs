@@ -26,9 +26,19 @@ public sealed class NetworkDiagnostics
         int timeoutMilliseconds = 5_000,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            throw new ArgumentException("Host must be provided.", nameof(host));
+        }
+
         if (attempts <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(attempts));
+        }
+
+        if (timeoutMilliseconds <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeoutMilliseconds));
         }
 
         var metrics = new LatencyMetrics();
