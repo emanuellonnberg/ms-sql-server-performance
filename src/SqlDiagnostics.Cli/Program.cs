@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using SqlDiagnostics.Client;
@@ -149,6 +150,65 @@ internal static class Program
             {
                 builder.AppendLine($"  Page Life Expectancy: {ple:N0} seconds");
             }
+            if (report.Server.Waits.Count > 0)
+            {
+                builder.AppendLine("  Top Waits:");
+                foreach (var wait in report.Server.Waits.Take(5))
+                {
+                    builder.AppendLine($"    {wait.WaitType}: Wait={wait.WaitTimeMs:N0} ms, Signal={wait.SignalWaitTimeMs:N0} ms, Tasks={wait.WaitingTasksCount:N0}");
+                }
+            }
+            if (report.Server.PerformanceCounters.Count > 0)
+            {
+                builder.AppendLine("  Performance Counters:");
+                foreach (var counter in report.Server.PerformanceCounters)
+                {
+                    var instanceSuffix = string.IsNullOrWhiteSpace(counter.InstanceName) ? string.Empty : $" ({counter.InstanceName})";
+                    var formattedValue = double.IsNaN(counter.Value)
+                        ? "n/a"
+                        : counter.CounterName switch
+                        {
+                            "Buffer cache hit ratio" => $"{counter.Value:N2}%",
+                            "Page life expectancy" => $"{counter.Value:N0} sec",
+                            "User Connections" => counter.Value.ToString("N0"),
+                            _ => $"{counter.Value:N0} (cumulative)"
+                        };
+                    builder.AppendLine($"    {counter.CounterName}{instanceSuffix}: {formattedValue}");
+                }
+            }
+            builder.AppendLine();
+        }
+
+        if (report.Databases is { Databases.Count: > 0 } dbMetrics)
+        {
+            builder.AppendLine("Database Metrics");
+            foreach (var database in dbMetrics.Databases)
+            {
+                builder.AppendLine($"  {database.Name}: State={database.State ?? "?"}, Recovery={database.RecoveryModel ?? "?"}");
+
+                var dataSize = database.DataFileSizeMb;
+                var logSize = database.LogFileSizeMb;
+                if (dataSize.HasValue || logSize.HasValue)
+                {
+                    builder.AppendLine($"    Data Size: {(dataSize.HasValue ? dataSize.Value.ToString("N1") : "n/a")} MB, Log Size: {(logSize.HasValue ? logSize.Value.ToString("N1") : "n/a")} MB");
+                }
+
+                if (database.LogUsedPercent is { } logUsed)
+                {
+                    builder.AppendLine($"    Log Used: {logUsed:N1}%");
+                }
+
+                if (database.ActiveSessionCount is { } sessions || database.RunningRequestCount is { } requests)
+                {
+                    builder.AppendLine($"    Sessions: {sessions}, Active Requests: {requests}");
+                }
+            }
+
+            if (dbMetrics.Metadata.TryGetValue("warning", out var warning) && warning is string warningText && !string.IsNullOrWhiteSpace(warningText))
+            {
+                builder.AppendLine($"  Warning: {warningText}");
+            }
+
             builder.AppendLine();
         }
 

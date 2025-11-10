@@ -10,6 +10,8 @@ public sealed class ServerMetrics
 {
     public ServerResourceUsage ResourceUsage { get; set; } = new();
     public IReadOnlyDictionary<string, object> AdditionalProperties => _additionalProperties;
+    public IList<WaitStatistic> Waits { get; } = new List<WaitStatistic>();
+    public IList<PerformanceCounterMetric> PerformanceCounters { get; } = new List<PerformanceCounterMetric>();
 
     private readonly Dictionary<string, object> _additionalProperties = new(StringComparer.OrdinalIgnoreCase);
 
@@ -35,4 +37,27 @@ public sealed class ServerResourceUsage
     public double? TotalMemoryMb { get; set; }
     public double? PageLifeExpectancySeconds { get; set; }
     public long? IoStallMs { get; set; }
+}
+
+/// <summary>
+/// Represents a wait type aggregated from sys.dm_os_wait_stats.
+/// </summary>
+public sealed class WaitStatistic
+{
+    public string WaitType { get; set; } = string.Empty;
+    public long WaitTimeMs { get; set; }
+    public long SignalWaitTimeMs { get; set; }
+    public long WaitingTasksCount { get; set; }
+}
+
+/// <summary>
+/// Represents a selected SQL Server performance counter.
+/// </summary>
+public sealed class PerformanceCounterMetric
+{
+    public string CounterName { get; set; } = string.Empty;
+    public string? InstanceName { get; set; }
+    public double Value { get; set; }
+    public string? ObjectName { get; set; }
+    public int CounterType { get; set; }
 }

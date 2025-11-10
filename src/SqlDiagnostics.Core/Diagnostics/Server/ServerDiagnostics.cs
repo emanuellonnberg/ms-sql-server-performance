@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,6 +43,18 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
                 ResourceUsage = await GatherResourceUsageAsync(connection, cancellationToken).ConfigureAwait(false)
             };
 
+            var waits = await GatherTopWaitStatsAsync(connection, cancellationToken).ConfigureAwait(false);
+            foreach (var wait in waits)
+            {
+                metrics.Waits.Add(wait);
+            }
+
+            var counters = await GatherPerformanceCountersAsync(connection, cancellationToken).ConfigureAwait(false);
+            foreach (var counter in counters)
+            {
+                metrics.PerformanceCounters.Add(counter);
+            }
+
             var version = await ExecuteScalarAsync<string>(connection, "SELECT @@VERSION", cancellationToken).ConfigureAwait(false);
             metrics.AddProperty("sql_version_string", version ?? string.Empty);
 
@@ -83,6 +96,56 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
         usage.IoStallMs = ioTask.Result;
 
         return usage;
+    }
+
+    private async Task<IReadOnlyList<WaitStatistic>> GatherTopWaitStatsAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
+        var result = await ExecuteReaderAsync(connection, WaitStatsQuery, MapWaitStatsAsync, cancellationToken).ConfigureAwait(false);
+        return result ?? Array.Empty<WaitStatistic>();
+    }
+
+    private static async Task<IReadOnlyList<WaitStatistic>> MapWaitStatsAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var waits = new List<WaitStatistic>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var wait = new WaitStatistic
+            {
+                WaitType = reader.GetString(0),
+                WaitTimeMs = reader.IsDBNull(1) ? 0 : reader.GetInt64(1),
+                SignalWaitTimeMs = reader.IsDBNull(2) ? 0 : reader.GetInt64(2),
+                WaitingTasksCount = reader.IsDBNull(3) ? 0 : reader.GetInt64(3)
+            };
+            waits.Add(wait);
+        }
+
+        return waits;
+    }
+
+    private async Task<IReadOnlyList<PerformanceCounterMetric>> GatherPerformanceCountersAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
+        var result = await ExecuteReaderAsync(connection, PerformanceCountersQuery, MapPerformanceCountersAsync, cancellationToken).ConfigureAwait(false);
+        return result ?? Array.Empty<PerformanceCounterMetric>();
+    }
+
+    private static async Task<IReadOnlyList<PerformanceCounterMetric>> MapPerformanceCountersAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var counters = new List<PerformanceCounterMetric>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var counter = new PerformanceCounterMetric
+            {
+                ObjectName = reader.IsDBNull(0) ? null : reader.GetString(0),
+                CounterName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                InstanceName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                Value = reader.IsDBNull(3) ? double.NaN : Convert.ToDouble(reader.GetValue(3)),
+                CounterType = reader.IsDBNull(4) ? 0 : reader.GetInt32(4)
+            };
+
+            counters.Add(counter);
+        }
+
+        return counters;
     }
 
     private static async Task<(double cpu, double sqlCpu)?> MapCpuUsageAsync(SqlDataReader reader, CancellationToken cancellationToken)
@@ -169,5 +232,82 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
     private const string IoQuery = """
         SELECT SUM(io_stall) AS io_stall
         FROM sys.dm_io_virtual_file_stats(NULL, NULL);
+        """;
+
+    private const string WaitStatsQuery = """
+        SELECT TOP (10)
+            wait_type,
+            wait_time_ms,
+            signal_wait_time_ms,
+            waiting_tasks_count
+        FROM sys.dm_os_wait_stats
+        WHERE wait_type NOT IN (
+            'SLEEP_TASK',
+            'SLEEP_SYSTEMTASK',
+            'LAZYWRITER_SLEEP',
+            'RESOURCE_QUEUE',
+            'XE_TIMER_EVENT',
+            'XE_DISPATCHER_WAIT',
+            'FT_IFTS_SCHEDULER_IDLE_WAIT',
+            'BROKER_TASK_STOP',
+            'BROKER_TO_FLUSH',
+            'SQLTRACE_BUFFER_FLUSH',
+            'CLR_AUTO_EVENT',
+            'CLR_MANUAL_EVENT',
+            'REQUEST_FOR_DEADLOCK_SEARCH'
+        )
+        ORDER BY wait_time_ms DESC;
+        """;
+
+    private const string PerformanceCountersQuery = """
+        WITH counters AS (
+            SELECT
+                object_name,
+                counter_name,
+                instance_name,
+                cntr_value,
+                cntr_type
+            FROM sys.dm_os_performance_counters
+            WHERE (
+                object_name LIKE '%SQL Statistics%'
+                AND counter_name IN ('Batch Requests/sec', 'SQL Compilations/sec', 'SQL Re-Compilations/sec')
+            )
+            OR (
+                object_name LIKE '%Buffer Manager%'
+                AND counter_name IN ('Page life expectancy', 'Page lookups/sec', 'Buffer cache hit ratio', 'Buffer cache hit ratio base')
+            )
+            OR (
+                object_name LIKE '%General Statistics%'
+                AND counter_name IN ('User Connections')
+            )
+        )
+        SELECT
+            c.object_name,
+            c.counter_name,
+            c.instance_name,
+            CASE
+                WHEN c.counter_name = 'Buffer cache hit ratio'
+                    THEN CASE
+                        WHEN b.cntr_value IS NULL OR b.cntr_value = 0 THEN NULL
+                        ELSE (c.cntr_value * 100.0) / b.cntr_value
+                    END
+                ELSE CAST(c.cntr_value AS float)
+            END AS cntr_value,
+            c.cntr_type
+        FROM counters AS c
+        LEFT JOIN counters AS b
+            ON c.counter_name = 'Buffer cache hit ratio'
+            AND b.counter_name = 'Buffer cache hit ratio base'
+            AND c.object_name = b.object_name
+            AND ISNULL(c.instance_name, '') = ISNULL(b.instance_name, '')
+        WHERE c.counter_name IN (
+            'Batch Requests/sec',
+            'SQL Compilations/sec',
+            'SQL Re-Compilations/sec',
+            'Page life expectancy',
+            'Page lookups/sec',
+            'Buffer cache hit ratio',
+            'User Connections'
+        );
         """;
 }
