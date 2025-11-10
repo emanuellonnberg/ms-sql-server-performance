@@ -1,6 +1,7 @@
 using System;
 using SqlDiagnostics.Core.Client;
 using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Reports;
 using Xunit;
 
 namespace SqlDiagnostics.Core.Tests;

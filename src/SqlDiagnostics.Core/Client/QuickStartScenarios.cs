@@ -1,5 +1,6 @@
 using System;
 using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Reports;
 
 namespace SqlDiagnostics.Core.Client;
 
