@@ -160,7 +160,7 @@ public sealed class DiagnosticOptionsBuilder
         _options.WaitStatsScope = waitStatsScope;
         if (!string.IsNullOrWhiteSpace(sampleQuery))
         {
-            _options.QueryToProfile = sampleQuery;
+            _options.QueryToProfile = sampleQuery!;
         }
         return this;
     }

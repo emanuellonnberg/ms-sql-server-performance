@@ -714,17 +714,20 @@ public static class DiagnosticReportExtensions
         builder.AppendLine("</td></tr>");
     }
 
-    private static string Escape(string value)
+    private static string Escape(string? value)
     {
-        if (string.IsNullOrEmpty(value))
+        var safeValue = value ?? string.Empty;
+        if (safeValue.Length == 0)
         {
             return string.Empty;
         }
 
-        return value
+        return safeValue
             .Replace("&", "&amp;")
             .Replace("<", "&lt;")
-            .Replace(">", "&gt;");
+            .Replace(">", "&gt;")
+            .Replace("\"", "&quot;")
+            .Replace("'", "&#39;");
     }
 
     private static string FormatMilliseconds(TimeSpan value) => $"{value.TotalMilliseconds:N0} ms";
