@@ -9,7 +9,9 @@ SqlDiagnostics.sln
 ├── src/
 │   ├── SqlDiagnostics.Core/           # NuGet-ready diagnostics library
 │   ├── SqlDiagnostics.Cli/            # Standalone CLI entry point
-│   └── SqlDiagnostics.Samples/        # Minimal sample showcasing library usage
+│   ├── SqlDiagnostics.Samples/        # Minimal sample showcasing library usage
+│   ├── SqlDiagnostics.UI.Dialogs/     # Reusable WPF dialog for connection quality monitoring
+│   └── SqlDiagnostics.UI.Wpf/         # Full desktop dashboard prototype
 ├── tests/
 │   ├── SqlDiagnostics.Core.Tests/     # Unit test suite
 │   └── SqlDiagnostics.Integration.Tests/ # Placeholder for live SQL integration scenarios
@@ -71,5 +73,29 @@ The WPF preview lives in `src/SqlDiagnostics.UI.Wpf`. Open the `.csproj` (or the
 - Accept a connection string and start/stop periodic `RunQuickCheckAsync` probes
 - Display key connection/network metrics and last updated timestamps in realtime
 - Surface high-priority recommendations as they are emitted
+- Launch the optional connection quality dialog (see below) for latency and throughput charts
 
-> **Note**: WPF tooling is Windows-only. The UI project is intentionally excluded from the cross-platform `SqlDiagnostics.sln` so CI builds on Linux/macOS stay green. Build it locally on Windows with `dotnet build src/SqlDiagnostics.UI.Wpf/SqlDiagnostics.UI.Wpf.csproj`.
+> **Note**: WPF tooling is Windows-only. Build the UI projects locally on Windows with `dotnet build src/SqlDiagnostics.UI.Wpf/SqlDiagnostics.UI.Wpf.csproj`.
+
+## Connection Quality Dialog
+
+Need a lightweight visual on top of your own application? Reference `SqlDiagnostics.UI.Dialogs` and call the launcher helpers:
+
+```csharp
+using SqlDiagnostics.UI.Dialogs;
+
+var options = new ConnectionQualityDialogOptions
+{
+    ConnectionString = connectionString,               // or
+    // Monitor = existingDiagnosticMonitorInstance,
+    MonitoringInterval = TimeSpan.FromSeconds(5)
+};
+
+ConnectionQualityDialogLauncher.Show(options);
+```
+
+- When you pass a connection string, the dialog creates and manages its own `DiagnosticMonitor`.
+- When you pass an existing `DiagnosticMonitor`, it simply renders snapshots while your host application controls collection.
+- The dialog streams latency samples (including jitter) and SQL throughput data using OxyPlot line charts.
+
+For a working example, run the WPF dashboard and click **Connection Quality…** after providing a connection string or starting a monitoring session.

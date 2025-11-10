@@ -112,5 +112,6 @@ Cancel the subscription to stop the loop.
 ## 7. Next steps
 
 - Review `docs/` for deeper architectural notes and baseline comparison strategies.
-- Explore the WPF dashboard under `src/SqlDiagnostics.UI.Wpf` (Windows only) for a realtime view.
+- Explore the WPF dashboard under `src/SqlDiagnostics.UI.Wpf` (Windows only) for a realtime view, including the new **Connection Quality…** dialog.
+- Host the reusable connection quality dialog in your own WPF application by referencing `SqlDiagnostics.UI.Dialogs` and calling `ConnectionQualityDialogLauncher.Show`.
 - Extend diagnostics by adding custom recommendation rules via `SqlDiagnosticsClient.RegisterRecommendationRule`.

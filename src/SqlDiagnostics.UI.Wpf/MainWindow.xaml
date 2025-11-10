@@ -18,9 +18,10 @@
         </Grid.RowDefinitions>
 
         <Border Padding="12" Background="#f7f9fc" CornerRadius="6" BorderBrush="#d0d7e3" BorderThickness="1">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Connection String:" VerticalAlignment="Center" FontWeight="SemiBold"/>
                 <TextBox Width="500"
+                         Margin="8,0,0,0"
                          Text="{Binding ConnectionString, UpdateSourceTrigger=PropertyChanged}"
                          ToolTip="SQL Server connection string" />
                 <Button Content="Start"
@@ -30,8 +31,13 @@
                         IsEnabled="{Binding IsStartEnabled}" />
                 <Button Content="Stop"
                         Width="80"
+                        Margin="12,0,0,0"
                         Command="{Binding StopCommand}"
                         IsEnabled="{Binding IsMonitoring}" />
+                <Button Content="Connection Quality…"
+                        Width="180"
+                        Margin="12,0,0,0"
+                        Click="OnShowConnectionQuality" />
             </StackPanel>
         </Border>
 

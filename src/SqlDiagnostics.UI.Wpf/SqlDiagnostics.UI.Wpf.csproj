@@ -10,5 +10,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SqlDiagnostics.Core\SqlDiagnostics.Core.csproj" />
+    <ProjectReference Include="..\SqlDiagnostics.UI.Dialogs\SqlDiagnostics.UI.Dialogs.csproj" />
   </ItemGroup>
 </Project>

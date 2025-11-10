@@ -46,6 +46,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
     public RelayCommand StartCommand { get; }
 
     public RelayCommand StopCommand { get; }
+    public DiagnosticMonitor Monitor => _monitor;
 
     public ObservableCollection<RecommendationItemViewModel> Recommendations { get; } = new();
 
