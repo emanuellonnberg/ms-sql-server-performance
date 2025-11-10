@@ -269,10 +269,11 @@ public sealed class QueryDiagnostics
 
         foreach (System.Collections.DictionaryEntry entry in rawStats)
         {
-            var key = entry.Key?.ToString();
-            if (!string.IsNullOrWhiteSpace(key))
+            if (entry.Key is string key &&
+                !string.IsNullOrWhiteSpace(key) &&
+                entry.Value is { } statisticValue)
             {
-                metrics.AddStatistic(key, entry.Value);
+                metrics.AddStatistic(key, statisticValue);
             }
         }
 
@@ -283,7 +284,11 @@ public sealed class QueryDiagnostics
     {
         if (stats.Contains(key))
         {
-            setter(stats[key]);
+            var value = stats[key];
+            if (value is not null)
+            {
+                setter(value);
+            }
         }
     }
 

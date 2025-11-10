@@ -189,9 +189,9 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
 
         if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Network))
         {
-            var host = report.TargetDataSource;
-            if (!string.IsNullOrWhiteSpace(host))
+            if (!string.IsNullOrWhiteSpace(report.TargetDataSource))
             {
+                var host = report.TargetDataSource!;
                 report.Network = await _networkDiagnostics
                     .MeasureLatencyAsync(host, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
@@ -240,7 +240,9 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
             {
                 try
                 {
-                    var query = effectiveOptions.QueryToProfile;
+                    var query = string.IsNullOrWhiteSpace(effectiveOptions.QueryToProfile)
+                        ? "SELECT 1"
+                        : effectiveOptions.QueryToProfile!;
                     var queryMetrics = await _queryDiagnostics
                         .ExecuteWithDiagnosticsAsync(connection, query, cancellationToken: cancellationToken)
                         .ConfigureAwait(false);

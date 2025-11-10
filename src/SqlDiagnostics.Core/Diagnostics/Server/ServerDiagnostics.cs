@@ -110,7 +110,7 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
         return result ?? Array.Empty<WaitStatistic>();
     }
 
-    private static async Task<IReadOnlyList<WaitStatistic>> MapWaitStatsAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<WaitStatistic>?> MapWaitStatsAsync(SqlDataReader reader, CancellationToken cancellationToken)
     {
         var waits = new List<WaitStatistic>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -140,7 +140,7 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
         return result ?? Array.Empty<ServerConfigurationSetting>();
     }
 
-    private static async Task<IReadOnlyList<PerformanceCounterMetric>> MapPerformanceCountersAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<PerformanceCounterMetric>?> MapPerformanceCountersAsync(SqlDataReader reader, CancellationToken cancellationToken)
     {
         var counters = new List<PerformanceCounterMetric>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -160,7 +160,7 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
         return counters;
     }
 
-    private static async Task<IReadOnlyList<ServerConfigurationSetting>> MapConfigurationAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<ServerConfigurationSetting>?> MapConfigurationAsync(SqlDataReader reader, CancellationToken cancellationToken)
     {
         var settings = new List<ServerConfigurationSetting>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))

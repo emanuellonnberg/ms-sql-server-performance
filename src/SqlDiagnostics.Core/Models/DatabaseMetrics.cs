@@ -43,5 +43,5 @@ public sealed class DatabaseSnapshot
     public long? RunningRequestCount { get; set; }
     public double? AggregateWaitTimeMs { get; set; }
 
-    public IDictionary<string, object> AdditionalProperties { get; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    public IDictionary<string, object?> AdditionalProperties { get; } = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 }
