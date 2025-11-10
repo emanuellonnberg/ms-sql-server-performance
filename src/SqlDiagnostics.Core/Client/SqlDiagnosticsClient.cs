@@ -306,6 +306,8 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
             }
         }
 
+        ApplyBaselineComparison(report, effectiveOptions);
+
         if (effectiveOptions.GenerateRecommendations)
         {
             GenerateRecommendations(report);
@@ -316,6 +318,51 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
 
     private static bool NeedsSqlConnection(DiagnosticCategories categories) =>
         (categories & (DiagnosticCategories.Query | DiagnosticCategories.Server | DiagnosticCategories.Database)) != 0;
+
+    private void ApplyBaselineComparison(DiagnosticReport report, DiagnosticOptions options)
+    {
+        if (!options.CompareWithBaseline || options.Baseline is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var comparison = BaselineComparer.Compare(report, options.Baseline);
+            report.BaselineComparison = comparison;
+
+            if (comparison.HealthScoreDelta.HasValue)
+            {
+                report.Metadata["baseline_health_score_delta"] = comparison.HealthScoreDelta.Value;
+            }
+
+            if (comparison.HasRegressions && comparison.Notes.Count > 0)
+            {
+                report.Metadata["baseline_regressions"] = comparison.Notes;
+            }
+
+            if (!options.GenerateRecommendations || !comparison.HasRegressions)
+            {
+                return;
+            }
+
+            foreach (var note in comparison.Notes)
+            {
+                report.Recommendations.Add(new Recommendation
+                {
+                    Severity = RecommendationSeverity.Warning,
+                    Category = "Baseline Comparison",
+                    Issue = "Regression detected relative to baseline",
+                    RecommendationText = note
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to compare report to baseline.");
+            report.Metadata["baseline_comparison_error"] = ex.Message;
+        }
+    }
 
     private sealed class DiagnosticsObservable : IObservable<DiagnosticSnapshot>
     {

@@ -24,6 +24,7 @@ public sealed class DiagnosticReport
     public DatabaseMetrics? Databases { get; set; }
     public ConnectionPoolMetrics? ConnectionPool { get; set; }
     public ConnectionStabilityReport? ConnectionStability { get; set; }
+    public BaselineComparisonResult? BaselineComparison { get; set; }
     public IList<Recommendation> Recommendations { get; } = new List<Recommendation>();
     public IDictionary<string, object> Metadata { get; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 }
