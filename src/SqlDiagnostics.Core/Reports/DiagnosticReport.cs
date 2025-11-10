@@ -15,6 +15,7 @@ public sealed class DiagnosticReport
     public LatencyMetrics? Network { get; set; }
     public QueryMetrics? Query { get; set; }
     public ServerMetrics? Server { get; set; }
+    public DatabaseMetrics? Databases { get; set; }
     public IList<Recommendation> Recommendations { get; } = new List<Recommendation>();
     public IDictionary<string, object> Metadata { get; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 }

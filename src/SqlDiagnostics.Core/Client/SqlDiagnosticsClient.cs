@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using SqlDiagnostics.Diagnostics.Connection;
+using SqlDiagnostics.Diagnostics.Database;
 using SqlDiagnostics.Diagnostics.Network;
 using SqlDiagnostics.Diagnostics.Query;
 using SqlDiagnostics.Diagnostics.Server;
@@ -21,6 +22,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
     private readonly ConnectionDiagnostics _connectionDiagnostics;
     private readonly NetworkDiagnostics _networkDiagnostics;
     private readonly QueryDiagnostics _queryDiagnostics;
+    private readonly DatabaseDiagnostics _databaseDiagnostics;
     private readonly ServerDiagnostics _serverDiagnostics;
     private readonly ILogger? _logger;
     private bool _disposed;
@@ -32,6 +34,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
         _networkDiagnostics = new NetworkDiagnostics(loggerFactory?.CreateLogger<NetworkDiagnostics>());
         _queryDiagnostics = new QueryDiagnostics();
         _serverDiagnostics = new ServerDiagnostics(loggerFactory?.CreateLogger<ServerDiagnostics>());
+        _databaseDiagnostics = new DatabaseDiagnostics(loggerFactory?.CreateLogger<DatabaseDiagnostics>());
     }
 
     public ConnectionDiagnostics Connection => _connectionDiagnostics;
@@ -41,6 +44,8 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
     public QueryDiagnostics Query => _queryDiagnostics;
 
     public ServerDiagnostics Server => _serverDiagnostics;
+
+    public DatabaseDiagnostics Database => _databaseDiagnostics;
 
     public async Task<DiagnosticReport> RunQuickCheckAsync(
         string connectionString,
@@ -84,6 +89,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
         using var connection = new SqlConnection(connectionString);
 
         report.Server = await _serverDiagnostics.CollectAsync(connection, cancellationToken).ConfigureAwait(false);
+        report.Databases = await _databaseDiagnostics.CollectAsync(connection, cancellationToken).ConfigureAwait(false);
         report.Metadata["collection_mode"] = "comprehensive";
 
         return report;
