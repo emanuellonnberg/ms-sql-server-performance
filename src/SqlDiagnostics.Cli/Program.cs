@@ -68,6 +68,14 @@ internal static class Program
                     return args[i + 1];
                 }
             }
+            else if (args[i].StartsWith($"{ConnectionOption}=", StringComparison.OrdinalIgnoreCase))
+            {
+                return args[i][ConnectionOption.Length + 1..];
+            }
+            else if (args[i].StartsWith($"{ConnectionShortOption}=", StringComparison.OrdinalIgnoreCase))
+            {
+                return args[i][ConnectionShortOption.Length + 1..];
+            }
         }
 
         return Environment.GetEnvironmentVariable("SQLDIAG_CONNECTION_STRING");
@@ -79,7 +87,9 @@ internal static class Program
         Console.WriteLine();
         Console.WriteLine("Usage:");
         Console.WriteLine("  sqldiag quick --connection \"<connection-string>\"");
+        Console.WriteLine("  sqldiag quick --connection=<connection-string>");
         Console.WriteLine("  sqldiag comprehensive --connection \"<connection-string>\"");
+        Console.WriteLine("  sqldiag comprehensive --connection=<connection-string>");
         Console.WriteLine();
         Console.WriteLine("Environment variables:");
         Console.WriteLine("  SQLDIAG_CONNECTION_STRING   Default connection string when --connection is omitted.");

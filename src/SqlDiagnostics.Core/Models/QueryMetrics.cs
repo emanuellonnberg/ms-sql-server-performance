@@ -19,5 +19,13 @@ public sealed class QueryMetrics
 
     private readonly Dictionary<string, object> _rawStatistics = new(StringComparer.OrdinalIgnoreCase);
 
-    public void AddStatistic(string key, object value) => _rawStatistics[key] = value;
+    public void AddStatistic(string key, object value)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new ArgumentException("Statistic key must be provided.", nameof(key));
+        }
+
+        _rawStatistics[key] = value;
+    }
 }

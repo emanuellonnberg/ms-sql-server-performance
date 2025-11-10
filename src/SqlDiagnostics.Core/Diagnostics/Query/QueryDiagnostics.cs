@@ -49,7 +49,11 @@ public sealed class QueryDiagnostics
 
         if (parametersFactory is not null)
         {
-            command.Parameters.AddRange(parametersFactory());
+            var parameters = parametersFactory();
+            if (parameters is { Length: > 0 })
+            {
+                command.Parameters.AddRange(parameters);
+            }
         }
 
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -81,7 +85,11 @@ public sealed class QueryDiagnostics
 
         foreach (System.Collections.DictionaryEntry entry in rawStats)
         {
-            metrics.AddStatistic(entry.Key.ToString() ?? string.Empty, entry.Value);
+            var key = entry.Key?.ToString();
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                metrics.AddStatistic(key, entry.Value);
+            }
         }
 
         return metrics;

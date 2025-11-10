@@ -11,6 +11,11 @@ public static class StopwatchHelper
 {
     public static async Task<(T result, TimeSpan elapsed)> MeasureAsync<T>(Func<Task<T>> action)
     {
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
         var sw = Stopwatch.StartNew();
         var result = await action().ConfigureAwait(false);
         sw.Stop();
@@ -19,6 +24,11 @@ public static class StopwatchHelper
 
     public static async Task<TimeSpan> MeasureAsync(Func<Task> action)
     {
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
         var sw = Stopwatch.StartNew();
         await action().ConfigureAwait(false);
         sw.Stop();

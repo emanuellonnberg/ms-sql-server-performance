@@ -28,9 +28,19 @@ public sealed class ConnectionDiagnostics
         TimeSpan? delayBetweenAttempts = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
+        }
+
         if (attempts <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(attempts));
+        }
+
+        if (delayBetweenAttempts.HasValue && delayBetweenAttempts.Value < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(delayBetweenAttempts), "Delay between attempts must not be negative.");
         }
 
         var metrics = new ConnectionMetrics { TotalAttempts = attempts };

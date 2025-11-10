@@ -13,7 +13,15 @@ public sealed class ServerMetrics
 
     private readonly Dictionary<string, object> _additionalProperties = new(StringComparer.OrdinalIgnoreCase);
 
-    public void AddProperty(string key, object value) => _additionalProperties[key] = value;
+    public void AddProperty(string key, object value)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            throw new ArgumentException("Property key must be provided.", nameof(key));
+        }
+
+        _additionalProperties[key] = value;
+    }
 }
 
 /// <summary>

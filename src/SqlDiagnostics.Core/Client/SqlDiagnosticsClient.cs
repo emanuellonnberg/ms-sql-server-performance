@@ -48,6 +48,11 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
     {
         EnsureNotDisposed();
 
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
+        }
+
         var report = new DiagnosticReport
         {
             TargetDataSource = ConnectionStringParser.TryGetDataSource(connectionString)

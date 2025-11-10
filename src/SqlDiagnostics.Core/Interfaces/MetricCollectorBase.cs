@@ -28,6 +28,21 @@ public abstract class MetricCollectorBase<T> : IMetricCollector<T>
         TimeSpan? delay = null,
         CancellationToken cancellationToken = default)
     {
+        if (operation is null)
+        {
+            throw new ArgumentNullException(nameof(operation));
+        }
+
+        if (maxAttempts <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxAttempts));
+        }
+
+        if (delay.HasValue && delay.Value < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(delay));
+        }
+
         return ExecuteWithRetryInternalAsync(operation, maxAttempts, delay ?? TimeSpan.FromMilliseconds(150), cancellationToken);
     }
 
@@ -37,6 +52,11 @@ public abstract class MetricCollectorBase<T> : IMetricCollector<T>
         TimeSpan delay,
         CancellationToken cancellationToken)
     {
+        if (operation is null)
+        {
+            throw new ArgumentNullException(nameof(operation));
+        }
+
         Exception? lastException = null;
 
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
