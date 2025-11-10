@@ -1,15 +1,12 @@
 using System;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
-using LiveChartsCore;
-using LiveChartsCore.SkiaSharpView.Painting;
-using LiveChartsCore.SkiaSharpView;
-using SkiaSharp;
+using OxyPlot;
+using OxyPlot.Axes;
+using OxyPlot.Series;
 using SqlDiagnostics.Core.Models;
 using SqlDiagnostics.Core.Monitoring;
 using SqlDiagnostics.Core.Reports;
@@ -17,7 +14,7 @@ using SqlDiagnostics.Core.Reports;
 namespace SqlDiagnostics.UI.Dialogs;
 
 /// <summary>
-/// View model powering the connection quality dialog with live charts.
+/// View model powering the connection quality dialog with OxyPlot charts.
 /// </summary>
 public sealed class ConnectionQualityViewModel : INotifyPropertyChanged, IAsyncDisposable
 {
@@ -28,6 +25,8 @@ public sealed class ConnectionQualityViewModel : INotifyPropertyChanged, IAsyncD
     private readonly bool _ownsMonitor;
     private readonly bool _shouldStartMonitor;
     private readonly Dispatcher _dispatcher;
+    private readonly LineSeries _latencySeries;
+    private readonly LineSeries _throughputSeries;
 
     private bool _monitorStarted;
     private bool _initialized;
@@ -59,93 +58,15 @@ public sealed class ConnectionQualityViewModel : INotifyPropertyChanged, IAsyncD
             _statusMessage = "Ready to start monitoring.";
         }
 
-        LatencyPoints = new ObservableCollection<ObservablePoint>();
-        ThroughputPoints = new ObservableCollection<ObservablePoint>();
-
-        LatencySeries = new ISeries[]
-        {
-            new LineSeries<ObservablePoint>
-            {
-                Values = LatencyPoints,
-                GeometryFill = null,
-                GeometryStroke = null,
-                Fill = null,
-                Stroke = new SolidColorPaint(new SKColor(33, 150, 243), 2),
-                Name = "Latency (ms)"
-            }
-        };
-
-        ThroughputSeries = new ISeries[]
-        {
-            new LineSeries<ObservablePoint>
-            {
-                Values = ThroughputPoints,
-                GeometryFill = null,
-                GeometryStroke = null,
-                Fill = null,
-                Stroke = new SolidColorPaint(new SKColor(76, 175, 80), 2),
-                Name = "Throughput (MB/s)"
-            }
-        };
-
-        LatencyXAxis = new Axis[]
-        {
-            new Axis
-            {
-                Labeler = value => DateTime.FromOADate(value).ToLocalTime().ToString("T"),
-                UnitWidth = TimeSpan.FromSeconds(5).TotalDays,
-                MinStep = TimeSpan.FromSeconds(5).TotalDays,
-                Name = "Timestamp"
-            }
-        };
-
-        LatencyYAxis = new Axis[]
-        {
-            new Axis
-            {
-                Name = "Milliseconds",
-                Labeler = value => $"{value:0}"
-            }
-        };
-
-        ThroughputXAxis = new Axis[]
-        {
-            new Axis
-            {
-                Labeler = value => DateTime.FromOADate(value).ToLocalTime().ToString("T"),
-                UnitWidth = TimeSpan.FromSeconds(5).TotalDays,
-                MinStep = TimeSpan.FromSeconds(5).TotalDays,
-                Name = "Timestamp"
-            }
-        };
-
-        ThroughputYAxis = new Axis[]
-        {
-            new Axis
-            {
-                Name = "Megabytes / second",
-                Labeler = value => $"{value:0.0}"
-            }
-        };
+        LatencyPlot = CreateLatencyPlot(out _latencySeries);
+        ThroughputPlot = CreateThroughputPlot(out _throughputSeries);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ObservableCollection<ObservablePoint> LatencyPoints { get; }
+    public PlotModel LatencyPlot { get; }
 
-    public ObservableCollection<ObservablePoint> ThroughputPoints { get; }
-
-    public ISeries[] LatencySeries { get; }
-
-    public ISeries[] ThroughputSeries { get; }
-
-    public Axis[] LatencyXAxis { get; }
-
-    public Axis[] LatencyYAxis { get; }
-
-    public Axis[] ThroughputXAxis { get; }
-
-    public Axis[] ThroughputYAxis { get; }
+    public PlotModel ThroughputPlot { get; }
 
     public string StatusMessage
     {
@@ -259,7 +180,7 @@ public sealed class ConnectionQualityViewModel : INotifyPropertyChanged, IAsyncD
             return;
         }
 
-        foreach (var sample in metrics.Samples.OrderBy(s => s.Timestamp))
+        foreach (var sample in metrics.Samples)
         {
             if (sample.Timestamp <= _lastLatencySampleTimestamp)
             {
@@ -267,11 +188,12 @@ public sealed class ConnectionQualityViewModel : INotifyPropertyChanged, IAsyncD
             }
 
             _lastLatencySampleTimestamp = sample.Timestamp;
-            var point = new ObservablePoint(sample.Timestamp.ToOADate(), sample.Elapsed.TotalMilliseconds);
-            LatencyPoints.Add(point);
+            var point = DateTimeAxis.CreateDataPoint(sample.Timestamp, sample.Elapsed.TotalMilliseconds);
+            _latencySeries.Points.Add(point);
         }
 
-        TrimExcess(LatencyPoints);
+        TrimSeries(_latencySeries);
+        LatencyPlot.InvalidatePlot(true);
 
         if (metrics.Average is null)
         {
@@ -291,9 +213,10 @@ public sealed class ConnectionQualityViewModel : INotifyPropertyChanged, IAsyncD
     {
         if (metrics?.MegabytesPerSecond is double mbPerSecond)
         {
-            var point = new ObservablePoint(snapshotTimestamp.ToOADate(), mbPerSecond);
-            ThroughputPoints.Add(point);
-            TrimExcess(ThroughputPoints);
+            var point = DateTimeAxis.CreateDataPoint(snapshotTimestamp, mbPerSecond);
+            _throughputSeries.Points.Add(point);
+            TrimSeries(_throughputSeries);
+            ThroughputPlot.InvalidatePlot(true);
             ThroughputSummary = $"Rate {mbPerSecond:0.00} MB/s over {metrics.Duration.TotalSeconds:0}s";
         }
         else
@@ -302,12 +225,71 @@ public sealed class ConnectionQualityViewModel : INotifyPropertyChanged, IAsyncD
         }
     }
 
-    private static void TrimExcess(ObservableCollection<ObservablePoint> collection)
+    private static void TrimSeries(LineSeries series)
     {
-        while (collection.Count > MaxSamples)
+        while (series.Points.Count > MaxSamples)
         {
-            collection.RemoveAt(0);
+            series.Points.RemoveAt(0);
         }
+    }
+
+    private static PlotModel CreateLatencyPlot(out LineSeries series) =>
+        CreatePlotModel("Latency (ms)", "Milliseconds", OxyColor.FromRgb(33, 150, 243), out series);
+
+    private static PlotModel CreateThroughputPlot(out LineSeries series) =>
+        CreatePlotModel("Throughput (MB/s)", "Megabytes per second", OxyColor.FromRgb(76, 175, 80), out series);
+
+    private static PlotModel CreatePlotModel(
+        string seriesTitle,
+        string yAxisTitle,
+        OxyColor strokeColor,
+        out LineSeries series)
+    {
+        var model = new PlotModel
+        {
+            PlotMargins = new OxyThickness(double.NaN)
+        };
+
+        var dateAxis = new DateTimeAxis
+        {
+            Position = AxisPosition.Bottom,
+            StringFormat = "HH:mm:ss",
+            MinorIntervalType = DateTimeIntervalType.Seconds,
+            IntervalType = DateTimeIntervalType.Seconds,
+            IsPanEnabled = false,
+            IsZoomEnabled = false,
+            MajorGridlineStyle = LineStyle.Solid,
+            MinorGridlineStyle = LineStyle.Dot,
+            AxislineStyle = LineStyle.Solid,
+            Angle = 0
+        };
+
+        var valueAxis = new LinearAxis
+        {
+            Position = AxisPosition.Left,
+            Title = yAxisTitle,
+            IsPanEnabled = false,
+            IsZoomEnabled = false,
+            MajorGridlineStyle = LineStyle.Solid,
+            MinorGridlineStyle = LineStyle.Dot,
+            AxislineStyle = LineStyle.Solid
+        };
+
+        series = new LineSeries
+        {
+            Title = seriesTitle,
+            Color = strokeColor,
+            StrokeThickness = 2,
+            MarkerType = MarkerType.None,
+            CanTrackerInterpolatePoints = false,
+            LineJoin = LineJoin.Round
+        };
+
+        model.Axes.Add(dateAxis);
+        model.Axes.Add(valueAxis);
+        model.Series.Add(series);
+
+        return model;
     }
 
     private static string FormatDuration(TimeSpan? duration)

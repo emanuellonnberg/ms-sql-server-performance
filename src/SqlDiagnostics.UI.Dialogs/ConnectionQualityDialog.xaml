@@ -3,14 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:lvc="https://github.com/beto-rodriguez/LiveCharts2"
+        xmlns:oxy="clr-namespace:OxyPlot.Wpf;assembly=OxyPlot.Wpf"
         mc:Ignorable="d"
         Title="Connection Quality Monitor"
         Width="760"
         Height="520"
         MinWidth="640"
         MinHeight="420">
-    <Grid Margin="16" RowSpacing="12">
+    <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -18,47 +18,45 @@
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" Padding="12" Background="{DynamicResource {x:Static SystemColors.ControlLightBrushKey}}" CornerRadius="6">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="16">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <StackPanel>
                     <TextBlock FontWeight="Bold" Text="Status" />
                     <TextBlock Text="{Binding StatusMessage}" />
                 </StackPanel>
-                <StackPanel>
+                <StackPanel Margin="16,0,0,0">
                     <TextBlock FontWeight="Bold" Text="Last updated" />
                     <TextBlock Text="{Binding LastUpdated}" />
                 </StackPanel>
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="1" Padding="12" Background="{DynamicResource {x:Static SystemColors.ControlLightLightBrushKey}}" CornerRadius="6">
-            <Grid RowSpacing="8">
+        <Border Grid.Row="1" Padding="12" Margin="0,12,0,0" Background="{DynamicResource {x:Static SystemColors.ControlLightLightBrushKey}}" CornerRadius="6">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Text="Network Latency" FontSize="16" FontWeight="Bold" />
-                <TextBlock Grid.Row="1" Text="{Binding LatencySummary}" Foreground="Gray" />
-                <lvc:CartesianChart Grid.Row="2"
-                                    Series="{Binding LatencySeries}"
-                                    XAxes="{Binding LatencyXAxis}"
-                                    YAxes="{Binding LatencyYAxis}" />
+                <TextBlock Grid.Row="1" Text="{Binding LatencySummary}" Foreground="Gray" Margin="0,8,0,0" />
+                <oxy:PlotView Grid.Row="2"
+                              Margin="0,8,0,0"
+                              Model="{Binding LatencyPlot}" />
             </Grid>
         </Border>
 
-        <Border Grid.Row="2" Padding="12" Background="{DynamicResource {x:Static SystemColors.ControlLightLightBrushKey}}" CornerRadius="6">
-            <Grid RowSpacing="8">
+        <Border Grid.Row="2" Padding="12" Margin="0,12,0,0" Background="{DynamicResource {x:Static SystemColors.ControlLightLightBrushKey}}" CornerRadius="6">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Text="Throughput" FontSize="16" FontWeight="Bold" />
-                <TextBlock Grid.Row="1" Text="{Binding ThroughputSummary}" Foreground="Gray" />
-                <lvc:CartesianChart Grid.Row="2"
-                                    Series="{Binding ThroughputSeries}"
-                                    XAxes="{Binding ThroughputXAxis}"
-                                    YAxes="{Binding ThroughputYAxis}" />
+                <TextBlock Grid.Row="1" Text="{Binding ThroughputSummary}" Foreground="Gray" Margin="0,8,0,0" />
+                <oxy:PlotView Grid.Row="2"
+                              Margin="0,8,0,0"
+                              Model="{Binding ThroughputPlot}" />
             </Grid>
         </Border>
     </Grid>

@@ -96,6 +96,6 @@ ConnectionQualityDialogLauncher.Show(options);
 
 - When you pass a connection string, the dialog creates and manages its own `DiagnosticMonitor`.
 - When you pass an existing `DiagnosticMonitor`, it simply renders snapshots while your host application controls collection.
-- The dialog streams latency samples (including jitter) and SQL throughput data using LiveCharts-powered graphs.
+- The dialog streams latency samples (including jitter) and SQL throughput data using OxyPlot line charts.
 
 For a working example, run the WPF dashboard and click **Connection Quality…** after providing a connection string or starting a monitoring session.
