@@ -19,15 +19,26 @@ public class DiagnosticOptionsBuilderTests
     public void Build_WithConnectionAndNetwork_SetsExpectedCategories()
     {
         var options = new DiagnosticOptionsBuilder()
-            .WithConnectionTests()
-            .WithNetworkTests()
-            .WithServerHealth()
+            .WithConnectionTests(includePoolAnalysis: true, monitorStability: true)
+            .WithNetworkTests(includeDns: true, includePortProbe: true, measureBandwidth: true)
+            .WithQueryAnalysis(includeQueryPlans: true, detectBlocking: true, captureWaitStats: true, sampleQuery: "SELECT 42")
+            .WithServerHealth(includeConfiguration: true)
             .Build();
 
         Assert.True(options.Categories.HasFlag(DiagnosticCategories.Connection));
         Assert.True(options.Categories.HasFlag(DiagnosticCategories.Network));
         Assert.True(options.Categories.HasFlag(DiagnosticCategories.Server));
         Assert.True(options.Categories.HasFlag(DiagnosticCategories.Database));
+        Assert.True(options.IncludeConnectionPoolAnalysis);
+        Assert.True(options.MonitorConnectionStability);
+        Assert.True(options.IncludeDnsResolution);
+        Assert.True(options.IncludePortProbe);
+        Assert.True(options.MeasureNetworkBandwidth);
+        Assert.True(options.IncludeQueryPlans);
+        Assert.True(options.DetectBlocking);
+        Assert.True(options.CaptureWaitStatistics);
+        Assert.Equal("SELECT 42", options.QueryToProfile);
+        Assert.True(options.IncludeServerConfiguration);
     }
 
     [Fact]

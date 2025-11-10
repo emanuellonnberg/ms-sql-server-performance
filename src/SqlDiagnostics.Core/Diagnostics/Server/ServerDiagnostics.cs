@@ -55,6 +55,12 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
                 metrics.PerformanceCounters.Add(counter);
             }
 
+            var configuration = await GatherConfigurationAsync(connection, cancellationToken).ConfigureAwait(false);
+            foreach (var setting in configuration)
+            {
+                metrics.Configuration.Add(setting);
+            }
+
             var version = await ExecuteScalarAsync<string>(connection, "SELECT @@VERSION", cancellationToken).ConfigureAwait(false);
             metrics.AddProperty("sql_version_string", version ?? string.Empty);
 
@@ -128,6 +134,12 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
         return result ?? Array.Empty<PerformanceCounterMetric>();
     }
 
+    private async Task<IReadOnlyList<ServerConfigurationSetting>> GatherConfigurationAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
+        var result = await ExecuteReaderAsync(connection, ConfigurationQuery, MapConfigurationAsync, cancellationToken).ConfigureAwait(false);
+        return result ?? Array.Empty<ServerConfigurationSetting>();
+    }
+
     private static async Task<IReadOnlyList<PerformanceCounterMetric>> MapPerformanceCountersAsync(SqlDataReader reader, CancellationToken cancellationToken)
     {
         var counters = new List<PerformanceCounterMetric>();
@@ -146,6 +158,26 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
         }
 
         return counters;
+    }
+
+    private static async Task<IReadOnlyList<ServerConfigurationSetting>> MapConfigurationAsync(SqlDataReader reader, CancellationToken cancellationToken)
+    {
+        var settings = new List<ServerConfigurationSetting>();
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var setting = new ServerConfigurationSetting
+            {
+                Name = reader.GetString(0),
+                Description = reader.IsDBNull(1) ? null : reader.GetString(1),
+                Value = reader.IsDBNull(2) ? null : reader.GetDouble(2),
+                ValueInUse = reader.IsDBNull(3) ? null : reader.GetDouble(3),
+                IsAdvanced = !reader.IsDBNull(4) && reader.GetBoolean(4)
+            };
+
+            settings.Add(setting);
+        }
+
+        return settings;
     }
 
     private static async Task<(double cpu, double sqlCpu)?> MapCpuUsageAsync(SqlDataReader reader, CancellationToken cancellationToken)
@@ -309,5 +341,18 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
             'Buffer cache hit ratio',
             'User Connections'
         );
+        """;
+
+    private const string ConfigurationQuery = """
+        SELECT
+            name,
+            description,
+            CAST(value AS float) AS configured_value,
+            CAST(value_in_use AS float) AS value_in_use,
+            is_advanced
+        FROM sys.configurations
+        WHERE value <> value_in_use
+            OR name IN ('cost threshold for parallelism', 'max degree of parallelism', 'optimize for ad hoc workloads')
+        ORDER BY name;
         """;
 }

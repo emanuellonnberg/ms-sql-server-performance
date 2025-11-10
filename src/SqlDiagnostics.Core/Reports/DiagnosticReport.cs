@@ -13,9 +13,17 @@ public sealed class DiagnosticReport
     public string? TargetDataSource { get; set; }
     public ConnectionMetrics? Connection { get; set; }
     public LatencyMetrics? Network { get; set; }
+    public DnsMetrics? Dns { get; set; }
+    public PortConnectivityResult? PortConnectivity { get; set; }
+    public BandwidthMetrics? Bandwidth { get; set; }
     public QueryMetrics? Query { get; set; }
+    public QueryPlanAnalysis? QueryPlan { get; set; }
+    public BlockingReport? Blocking { get; set; }
+    public WaitStatistics? WaitStatistics { get; set; }
     public ServerMetrics? Server { get; set; }
     public DatabaseMetrics? Databases { get; set; }
+    public ConnectionPoolMetrics? ConnectionPool { get; set; }
+    public ConnectionStabilityReport? ConnectionStability { get; set; }
     public IList<Recommendation> Recommendations { get; } = new List<Recommendation>();
     public IDictionary<string, object> Metadata { get; } = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 }

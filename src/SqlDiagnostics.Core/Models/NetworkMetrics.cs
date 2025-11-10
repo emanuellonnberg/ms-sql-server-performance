@@ -37,3 +37,49 @@ public readonly struct LatencySample
     public bool Successful { get; }
     public string? Error { get; }
 }
+
+/// <summary>
+/// Represents the outcome of a DNS resolution attempt.
+/// </summary>
+public sealed class DnsMetrics
+{
+    public TimeSpan? ResolutionTime { get; set; }
+
+    public IReadOnlyList<string> Addresses => _addresses;
+
+    private readonly List<string> _addresses = new();
+
+    public void AddAddress(string address)
+    {
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            _addresses.Add(address);
+        }
+    }
+}
+
+/// <summary>
+/// Represents the result of probing a TCP port for connectivity.
+/// </summary>
+public sealed class PortConnectivityResult
+{
+    public bool IsAccessible { get; set; }
+
+    public TimeSpan? RoundtripTime { get; set; }
+
+    public string? FailureReason { get; set; }
+}
+
+/// <summary>
+/// Represents measured throughput against a SQL Server endpoint.
+/// </summary>
+public sealed class BandwidthMetrics
+{
+    public TimeSpan Duration { get; set; }
+
+    public long BytesTransferred { get; set; }
+
+    public double? MegabytesPerSecond { get; set; }
+
+    public int IterationCount { get; set; }
+}

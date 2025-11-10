@@ -167,6 +167,24 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
             report.Connection = await _connectionDiagnostics
                 .MeasureConnectionAsync(connectionString, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
+
+            if (effectiveOptions.IncludeConnectionPoolAnalysis)
+            {
+                report.ConnectionPool = await _connectionDiagnostics
+                    .AnalyzeConnectionPoolAsync(connectionString, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (effectiveOptions.MonitorConnectionStability)
+            {
+                report.ConnectionStability = await _connectionDiagnostics
+                    .MonitorConnectionStabilityAsync(
+                        connectionString,
+                        effectiveOptions.ConnectionStabilityDuration,
+                        effectiveOptions.ConnectionStabilityProbeInterval,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
         }
 
         if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Network))
@@ -177,6 +195,20 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
                 report.Network = await _networkDiagnostics
                     .MeasureLatencyAsync(host, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
+
+                if (effectiveOptions.IncludeDnsResolution)
+                {
+                    report.Dns = await _networkDiagnostics
+                        .TestDnsResolutionAsync(host, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                if (effectiveOptions.IncludePortProbe)
+                {
+                    report.PortConnectivity = await _networkDiagnostics
+                        .TestPortConnectivityAsync(host, cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
             else
             {
@@ -189,15 +221,52 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
         {
             using var connection = new SqlConnection(connectionString);
 
+            if (effectiveOptions.MeasureNetworkBandwidth && effectiveOptions.Categories.HasFlag(DiagnosticCategories.Network))
+            {
+                try
+                {
+                    report.Bandwidth = await _networkDiagnostics
+                        .MeasureBandwidthAsync(connection, cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Network bandwidth measurement failed.");
+                    report.Metadata["network_bandwidth_skipped"] = ex.Message;
+                }
+            }
+
             if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Query))
             {
                 try
                 {
+                    var query = effectiveOptions.QueryToProfile;
                     var queryMetrics = await _queryDiagnostics
-                        .ExecuteWithDiagnosticsAsync(connection, "SELECT 1", cancellationToken: cancellationToken)
+                        .ExecuteWithDiagnosticsAsync(connection, query, cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
-                    queryMetrics.AddStatistic("QueryText", "SELECT 1");
+                    queryMetrics.AddStatistic("QueryText", query);
                     report.Query = queryMetrics;
+
+                    if (effectiveOptions.IncludeQueryPlans)
+                    {
+                        report.QueryPlan = await _queryDiagnostics
+                            .AnalyzeQueryPlanAsync(connection, query, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+
+                    if (effectiveOptions.DetectBlocking)
+                    {
+                        report.Blocking = await _queryDiagnostics
+                            .DetectBlockingAsync(connection, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+
+                    if (effectiveOptions.CaptureWaitStatistics)
+                    {
+                        report.WaitStatistics = await _queryDiagnostics
+                            .GetWaitStatisticsAsync(connection, effectiveOptions.WaitStatsScope, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
                 }
                 catch (Exception ex)
                 {

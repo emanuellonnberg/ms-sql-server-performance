@@ -38,6 +38,30 @@ public sealed class DiagnosticOptions
     /// </summary>
     public DiagnosticReport? Baseline { get; set; }
 
+    public bool IncludeConnectionPoolAnalysis { get; set; }
+
+    public bool MonitorConnectionStability { get; set; }
+
+    public TimeSpan ConnectionStabilityDuration { get; set; } = TimeSpan.FromMinutes(1);
+
+    public TimeSpan ConnectionStabilityProbeInterval { get; set; } = TimeSpan.FromSeconds(5);
+
+    public bool IncludeDnsResolution { get; set; }
+
+    public bool IncludePortProbe { get; set; }
+
+    public bool MeasureNetworkBandwidth { get; set; }
+
+    public bool DetectBlocking { get; set; }
+
+    public bool CaptureWaitStatistics { get; set; }
+
+    public WaitStatsScope WaitStatsScope { get; set; } = WaitStatsScope.Session;
+
+    public string QueryToProfile { get; set; } = "SELECT 1";
+
+    public bool IncludeServerConfiguration { get; set; }
+
     /// <summary>
     /// Creates a deep copy of the options instance.
     /// </summary>
@@ -48,7 +72,19 @@ public sealed class DiagnosticOptions
         IncludeQueryPlans = IncludeQueryPlans,
         GenerateRecommendations = GenerateRecommendations,
         CompareWithBaseline = CompareWithBaseline,
-        Baseline = Baseline
+        Baseline = Baseline,
+        IncludeConnectionPoolAnalysis = IncludeConnectionPoolAnalysis,
+        MonitorConnectionStability = MonitorConnectionStability,
+        ConnectionStabilityDuration = ConnectionStabilityDuration,
+        ConnectionStabilityProbeInterval = ConnectionStabilityProbeInterval,
+        IncludeDnsResolution = IncludeDnsResolution,
+        IncludePortProbe = IncludePortProbe,
+        MeasureNetworkBandwidth = MeasureNetworkBandwidth,
+        DetectBlocking = DetectBlocking,
+        CaptureWaitStatistics = CaptureWaitStatistics,
+        WaitStatsScope = WaitStatsScope,
+        QueryToProfile = QueryToProfile,
+        IncludeServerConfiguration = IncludeServerConfiguration
     };
 }
 
@@ -76,29 +112,64 @@ public sealed class DiagnosticOptionsBuilder
         return this;
     }
 
-    public DiagnosticOptionsBuilder WithConnectionTests()
+    public DiagnosticOptionsBuilder WithConnectionTests(
+        bool includePoolAnalysis = false,
+        bool monitorStability = false,
+        TimeSpan? stabilityDuration = null,
+        TimeSpan? stabilityInterval = null)
     {
         _options.Categories |= DiagnosticCategories.Connection;
+        _options.IncludeConnectionPoolAnalysis = includePoolAnalysis;
+        _options.MonitorConnectionStability = monitorStability;
+        if (stabilityDuration.HasValue)
+        {
+            _options.ConnectionStabilityDuration = stabilityDuration.Value;
+        }
+
+        if (stabilityInterval.HasValue)
+        {
+            _options.ConnectionStabilityProbeInterval = stabilityInterval.Value;
+        }
+
         return this;
     }
 
-    public DiagnosticOptionsBuilder WithNetworkTests()
+    public DiagnosticOptionsBuilder WithNetworkTests(
+        bool includeDns = true,
+        bool includePortProbe = true,
+        bool measureBandwidth = false)
     {
         _options.Categories |= DiagnosticCategories.Network;
+        _options.IncludeDnsResolution = includeDns;
+        _options.IncludePortProbe = includePortProbe;
+        _options.MeasureNetworkBandwidth = measureBandwidth;
         return this;
     }
 
-    public DiagnosticOptionsBuilder WithQueryAnalysis(bool includeQueryPlans = false)
+    public DiagnosticOptionsBuilder WithQueryAnalysis(
+        bool includeQueryPlans = false,
+        bool detectBlocking = true,
+        bool captureWaitStats = true,
+        WaitStatsScope waitStatsScope = WaitStatsScope.Session,
+        string? sampleQuery = null)
     {
         _options.Categories |= DiagnosticCategories.Query;
         _options.IncludeQueryPlans = includeQueryPlans;
+        _options.DetectBlocking = detectBlocking;
+        _options.CaptureWaitStatistics = captureWaitStats;
+        _options.WaitStatsScope = waitStatsScope;
+        if (!string.IsNullOrWhiteSpace(sampleQuery))
+        {
+            _options.QueryToProfile = sampleQuery;
+        }
         return this;
     }
 
-    public DiagnosticOptionsBuilder WithServerHealth()
+    public DiagnosticOptionsBuilder WithServerHealth(bool includeConfiguration = true)
     {
         _options.Categories |= DiagnosticCategories.Server;
         _options.Categories |= DiagnosticCategories.Database;
+        _options.IncludeServerConfiguration = includeConfiguration;
         return this;
     }
 
