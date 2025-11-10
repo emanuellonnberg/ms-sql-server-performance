@@ -18,22 +18,39 @@ SqlDiagnostics.sln
 
 ## Getting Started
 
-1. Install .NET 8 SDK.
-2. Restore the solution dependencies:
+1. Install the .NET 8 SDK and ensure a SQL Server instance is reachable.
+2. Clone and bootstrap the repository:
    ```
+   git clone https://github.com/<your-org>/SqlDiagnostics.git
+   cd SqlDiagnostics
    dotnet restore
-   ```
-3. Build and test:
-   ```
    dotnet build
    dotnet test
    ```
-4. Run a quick diagnostic from the CLI (requires a valid connection string):
+3. Run a quick health check from the CLI (set `SQLDIAG_CONNECTION_STRING` or pass `--connection` explicitly):
    ```
-   dotnet run --project src/SqlDiagnostics.Cli -- quick --connection "Server=...;Database=...;User Id=...;Password=...;"
+   dotnet run --project src/SqlDiagnostics.Cli -- quick --connection "$SQLDIAG_CONNECTION_STRING"
    ```
+4. Need a deeper report? Swap `quick` for `comprehensive` to include server, database, and query instrumentation.
 
-You can also reference `SqlDiagnostics.Core` directly from other projects to execute diagnostics programmatically.
+The companion guide in `QUICK_START.md` walks through the end-to-end workflow, including exports, troubleshooting, and monitoring scenarios.
+
+To embed diagnostics inside your own application, reference `SqlDiagnostics.Core` and use the new quick-start presets:
+
+```csharp
+using SqlDiagnostics.Core;
+using SqlDiagnostics.Core.Client;
+using SqlDiagnostics.Core.Models;
+
+await using var client = new SqlDiagnosticsClient();
+
+DiagnosticReport report = await client.RunFullDiagnosticsAsync(
+    connectionString,
+    QuickStartScenarios.ConnectionHealth(),
+    cancellationToken);
+
+Console.WriteLine($"Health Score: {report.GetHealthScore()}/100");
+```
 
 ## Diagnostics Coverage (Initial Pass)
 

@@ -4,7 +4,9 @@
 
 ```
 SqlDiagnostics.Core
-├── SqlDiagnosticsClient              (Main entry point)
+├── Client
+│   ├── SqlDiagnosticsClient              (main entry point)
+│   └── QuickStartScenarios               (preset builders for common workflows)
 ├── Diagnostics
 │   ├── ConnectionDiagnostics
 │   ├── NetworkDiagnostics
@@ -100,6 +102,33 @@ namespace SqlDiagnostics.Core
         Query = 4,
         Server = 8,
         All = Connection | Network | Query | Server
+    }
+}
+```
+
+### QuickStartScenarios
+
+```csharp
+namespace SqlDiagnostics.Core.Client
+{
+    /// <summary>
+    /// Opinionated presets for common diagnostics flows.
+    /// </summary>
+    public static class QuickStartScenarios
+    {
+        public static DiagnosticOptions ConnectionHealth(
+            TimeSpan? timeout = null,
+            bool includePoolAnalysis = true,
+            bool monitorStability = true);
+
+        public static DiagnosticOptions PerformanceDeepDive(
+            string queryText,
+            bool includePlans = true,
+            bool includeNetworkTests = true);
+
+        public static DiagnosticOptions BaselineRegression(
+            DiagnosticReport baseline,
+            bool includeServerInsights = true);
     }
 }
 ```
@@ -290,6 +319,8 @@ namespace SqlDiagnostics.Core.Models
 }
 ```
 
+`QuickStartScenarios` builds on top of `DiagnosticOptionsBuilder` to provide ready-to-run configurations for connection health, workload deep dives, and baseline regression checks.
+
 ## Extension Methods
 
 ```csharp
@@ -364,6 +395,21 @@ var options = new DiagnosticOptionsBuilder()
     .Build();
 
 var report = await client.RunFullDiagnosticsAsync(connectionString, options);
+```
+
+### Quick Start Preset
+
+```csharp
+using SqlDiagnostics.Core;
+using SqlDiagnostics.Core.Client;
+
+await using var client = new SqlDiagnosticsClient();
+
+var report = await client.RunFullDiagnosticsAsync(
+    connectionString,
+    QuickStartScenarios.ConnectionHealth());
+
+Console.WriteLine($"Connection success rate: {report.Connection?.SuccessRate:P1}");
 ```
 
 ### Continuous Monitoring
