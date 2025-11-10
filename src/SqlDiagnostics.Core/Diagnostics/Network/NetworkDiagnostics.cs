@@ -4,9 +4,9 @@ using System.Net.NetworkInformation;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SqlDiagnostics.Models;
+using SqlDiagnostics.Core.Models;
 
-namespace SqlDiagnostics.Diagnostics.Network;
+namespace SqlDiagnostics.Core.Diagnostics.Network;
 
 /// <summary>
 /// Performs ICMP ping probes to assess network latency and jitter.

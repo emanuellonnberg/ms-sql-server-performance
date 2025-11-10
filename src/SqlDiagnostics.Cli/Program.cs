@@ -2,8 +2,8 @@ using System;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using SqlDiagnostics.Client;
-using SqlDiagnostics.Reports;
+using SqlDiagnostics.Core;
+using SqlDiagnostics.Core.Reports;
 
 namespace SqlDiagnostics.Cli;
 
@@ -39,7 +39,8 @@ internal static class Program
                     report = await client.RunQuickCheckAsync(connectionString).ConfigureAwait(false);
                     break;
                 case "comprehensive":
-                    report = await client.RunComprehensiveAsync(connectionString).ConfigureAwait(false);
+                case "full":
+                    report = await client.RunFullDiagnosticsAsync(connectionString).ConfigureAwait(false);
                     break;
                 default:
                     Console.Error.WriteLine($"Unknown command '{command}'.");

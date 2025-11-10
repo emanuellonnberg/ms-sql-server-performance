@@ -3,10 +3,10 @@ using System.Data;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using SqlDiagnostics.Models;
+using SqlDiagnostics.Core.Models;
 using Microsoft.Data.SqlClient;
 
-namespace SqlDiagnostics.Diagnostics.Query;
+namespace SqlDiagnostics.Core.Diagnostics.Query;
 
 /// <summary>
 /// Wraps query execution to capture SQL client statistics.

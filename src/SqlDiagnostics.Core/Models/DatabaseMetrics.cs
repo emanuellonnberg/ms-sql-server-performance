@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SqlDiagnostics.Models;
+namespace SqlDiagnostics.Core.Models;
 
 /// <summary>
 /// Represents a snapshot of database-level health information across the SQL Server instance.

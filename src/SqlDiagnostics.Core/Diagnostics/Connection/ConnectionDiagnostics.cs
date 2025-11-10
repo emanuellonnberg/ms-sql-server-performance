@@ -5,10 +5,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
-using SqlDiagnostics.Models;
-using SqlDiagnostics.Utilities;
+using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Utilities;
 
-namespace SqlDiagnostics.Diagnostics.Connection;
+namespace SqlDiagnostics.Core.Diagnostics.Connection;
 
 /// <summary>
 /// Performs repeated connection attempts to capture latency and reliability data.

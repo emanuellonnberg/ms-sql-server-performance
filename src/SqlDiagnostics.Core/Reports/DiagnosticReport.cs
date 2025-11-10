@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using SqlDiagnostics.Models;
+using SqlDiagnostics.Core.Models;
 
-namespace SqlDiagnostics.Reports;
+namespace SqlDiagnostics.Core.Reports;
 
 /// <summary>
 /// Aggregates results from the diagnostics subsystems in a coherent report.

@@ -4,11 +4,11 @@ using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SqlDiagnostics.Interfaces;
-using SqlDiagnostics.Models;
+using SqlDiagnostics.Core.Interfaces;
+using SqlDiagnostics.Core.Models;
 using Microsoft.Data.SqlClient;
 
-namespace SqlDiagnostics.Diagnostics.Server;
+namespace SqlDiagnostics.Core.Diagnostics.Server;
 
 /// <summary>
 /// Executes lightweight DMV queries to capture server level metrics.

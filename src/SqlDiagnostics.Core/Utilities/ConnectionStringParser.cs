@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data.Common;
 
-namespace SqlDiagnostics.Utilities;
+namespace SqlDiagnostics.Core.Utilities;
 
 /// <summary>
 /// Utility to extract key attributes from SQL Server connection strings.

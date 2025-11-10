@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SqlDiagnostics.Models;
+namespace SqlDiagnostics.Core.Models;
 
 /// <summary>
 /// Captures timing and reliability statistics for SQL connection attempts.

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SqlDiagnostics.Models;
+namespace SqlDiagnostics.Core.Models;
 
 /// <summary>
 /// Aggregates dynamic management view information from the SQL Server instance.

@@ -5,9 +5,9 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
-using SqlDiagnostics.Models;
-using SqlDiagnostics.Monitoring;
-using SqlDiagnostics.Reports;
+using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Monitoring;
+using SqlDiagnostics.Core.Reports;
 
 namespace SqlDiagnostics.UI.Wpf.ViewModels;
 
@@ -174,16 +174,16 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         }
     }
 
-    private void OnSnapshotAvailable(object? sender, DiagnosticReport report)
+    private void OnSnapshotAvailable(object? sender, DiagnosticSnapshot snapshot)
     {
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher is null || dispatcher.CheckAccess())
         {
-            ApplyReport(report);
+            ApplyReport(snapshot);
         }
         else
         {
-            dispatcher.Invoke(() => ApplyReport(report));
+            dispatcher.Invoke(() => ApplyReport(snapshot));
         }
     }
 
@@ -200,10 +200,11 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         }
     }
 
-    private void ApplyReport(DiagnosticReport report)
+    private void ApplyReport(DiagnosticSnapshot snapshot)
     {
+        var report = snapshot.Report;
         UpdateStatus($"Monitoring {(report.TargetDataSource ?? "target")}…");
-        LastUpdatedDisplay = $"Last updated: {DateTime.Now:T}";
+        LastUpdatedDisplay = $"Last updated: {snapshot.Timestamp:T}";
 
         ApplyConnectionMetrics(report.Connection);
         ApplyNetworkMetrics(report.Network);
@@ -227,7 +228,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         MinMaxConnectionDisplay = $"{FormatDuration(metrics.MinConnectionTime)} — {FormatDuration(metrics.MaxConnectionTime)}";
     }
 
-    private void ApplyNetworkMetrics(Models.LatencyMetrics? metrics)
+    private void ApplyNetworkMetrics(LatencyMetrics? metrics)
     {
         if (metrics is null || metrics.Average is null)
         {

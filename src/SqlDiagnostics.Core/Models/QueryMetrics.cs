@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SqlDiagnostics.Models;
+namespace SqlDiagnostics.Core.Models;
 
 /// <summary>
 /// Represents execution statistics captured for a query.

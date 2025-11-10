@@ -1,18 +1,19 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using SqlDiagnostics.Diagnostics.Connection;
-using SqlDiagnostics.Diagnostics.Database;
-using SqlDiagnostics.Diagnostics.Network;
-using SqlDiagnostics.Diagnostics.Query;
-using SqlDiagnostics.Diagnostics.Server;
-using SqlDiagnostics.Models;
-using SqlDiagnostics.Reports;
-using SqlDiagnostics.Utilities;
+using SqlDiagnostics.Core.Diagnostics.Connection;
+using SqlDiagnostics.Core.Diagnostics.Database;
+using SqlDiagnostics.Core.Diagnostics.Network;
+using SqlDiagnostics.Core.Diagnostics.Query;
+using SqlDiagnostics.Core.Diagnostics.Server;
+using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Reports;
+using SqlDiagnostics.Core.Utilities;
 using Microsoft.Data.SqlClient;
 
-namespace SqlDiagnostics.Client;
+namespace SqlDiagnostics.Core;
 
 /// <summary>
 /// High-level facade that orchestrates individual diagnostics modules.
@@ -25,6 +26,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
     private readonly DatabaseDiagnostics _databaseDiagnostics;
     private readonly ServerDiagnostics _serverDiagnostics;
     private readonly ILogger? _logger;
+    private readonly List<IRecommendationRule> _recommendationRules = new();
     private bool _disposed;
 
     public SqlDiagnosticsClient(ILoggerFactory? loggerFactory = null)
@@ -47,9 +49,53 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
 
     public DatabaseDiagnostics Database => _databaseDiagnostics;
 
-    public async Task<DiagnosticReport> RunQuickCheckAsync(
+    public void RegisterRecommendationRule(IRecommendationRule rule)
+    {
+        EnsureNotDisposed();
+
+        if (rule is null)
+        {
+            throw new ArgumentNullException(nameof(rule));
+        }
+
+        _recommendationRules.Add(rule);
+    }
+
+    public Task<DiagnosticReport> RunQuickCheckAsync(
         string connectionString,
         CancellationToken cancellationToken = default)
+    {
+        var options = new DiagnosticOptions
+        {
+            Categories = DiagnosticCategories.Connection | DiagnosticCategories.Network
+        };
+
+        return RunDiagnosticsInternalAsync(connectionString, options, cancellationToken);
+    }
+
+    public Task<DiagnosticReport> RunDiagnosticsAsync(
+        string connectionString,
+        DiagnosticCategories categories,
+        CancellationToken cancellationToken = default)
+    {
+        var options = new DiagnosticOptions
+        {
+            Categories = categories
+        };
+
+        return RunDiagnosticsInternalAsync(connectionString, options, cancellationToken);
+    }
+
+    public Task<DiagnosticReport> RunFullDiagnosticsAsync(
+        string connectionString,
+        DiagnosticOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        RunDiagnosticsInternalAsync(connectionString, options ?? new DiagnosticOptions(), cancellationToken);
+
+    public IObservable<DiagnosticSnapshot> MonitorContinuously(
+        string connectionString,
+        TimeSpan interval,
+        DiagnosticOptions? options = null)
     {
         EnsureNotDisposed();
 
@@ -58,44 +104,304 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
             throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
         }
 
+        if (interval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(interval), "Interval must be positive.");
+        }
+
+        return new DiagnosticsObservable(this, connectionString, interval, options?.Clone());
+    }
+
+    [Obsolete("Use RunFullDiagnosticsAsync moving forward.")]
+    public Task<DiagnosticReport> RunComprehensiveAsync(
+        string connectionString,
+        CancellationToken cancellationToken = default) =>
+        RunFullDiagnosticsAsync(connectionString, cancellationToken: cancellationToken);
+
+    private async Task<DiagnosticReport> RunDiagnosticsInternalAsync(
+        string connectionString,
+        DiagnosticOptions options,
+        CancellationToken cancellationToken)
+    {
+        EnsureNotDisposed();
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
+        }
+
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        var effectiveOptions = options.Clone();
+        if (effectiveOptions.Categories == DiagnosticCategories.None)
+        {
+            effectiveOptions.Categories = DiagnosticCategories.All;
+        }
+
         var report = new DiagnosticReport
         {
             TargetDataSource = ConnectionStringParser.TryGetDataSource(connectionString)
         };
 
-        _logger?.LogInformation("Running quick check against {Target}", report.TargetDataSource ?? "<unknown>");
+        _logger?.LogInformation(
+            "Running diagnostics for {Target} with categories {Categories}",
+            report.TargetDataSource ?? "<unknown>",
+            effectiveOptions.Categories);
 
-        report.Connection = await _connectionDiagnostics.MeasureConnectionAsync(connectionString, cancellationToken: cancellationToken)
-            .ConfigureAwait(false);
+        report.Metadata["categories"] = effectiveOptions.Categories.ToString();
+        report.Metadata["timeout_seconds"] = effectiveOptions.Timeout.TotalSeconds;
+        report.Metadata["include_query_plans"] = effectiveOptions.IncludeQueryPlans;
+        report.Metadata["generate_recommendations"] = effectiveOptions.GenerateRecommendations;
 
-        var dataSource = report.TargetDataSource;
-        if (!string.IsNullOrWhiteSpace(dataSource))
+        if (effectiveOptions.CompareWithBaseline && effectiveOptions.Baseline is not null)
         {
-            report.Network = await _networkDiagnostics.MeasureLatencyAsync(dataSource, cancellationToken: cancellationToken).ConfigureAwait(false);
+            report.Metadata["baseline_target"] = effectiveOptions.Baseline.TargetDataSource ?? "<unknown>";
         }
 
-        GenerateRecommendations(report);
+        if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Connection))
+        {
+            report.Connection = await _connectionDiagnostics
+                .MeasureConnectionAsync(connectionString, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Network))
+        {
+            var host = report.TargetDataSource;
+            if (!string.IsNullOrWhiteSpace(host))
+            {
+                report.Network = await _networkDiagnostics
+                    .MeasureLatencyAsync(host, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                _logger?.LogWarning("Skipping network diagnostics; unable to determine target host.");
+                report.Metadata["network_skipped"] = "Missing data source";
+            }
+        }
+
+        if (NeedsSqlConnection(effectiveOptions.Categories))
+        {
+            using var connection = new SqlConnection(connectionString);
+
+            if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Query))
+            {
+                try
+                {
+                    var queryMetrics = await _queryDiagnostics
+                        .ExecuteWithDiagnosticsAsync(connection, "SELECT 1", cancellationToken: cancellationToken)
+                        .ConfigureAwait(false);
+                    queryMetrics.AddStatistic("QueryText", "SELECT 1");
+                    report.Query = queryMetrics;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Query diagnostics failed.");
+                    report.Metadata["query_skipped"] = ex.Message;
+                }
+            }
+
+            if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Server))
+            {
+                try
+                {
+                    report.Server = await _serverDiagnostics
+                        .CollectAsync(connection, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Server diagnostics failed.");
+                    report.Metadata["server_skipped"] = ex.Message;
+                }
+            }
+
+            if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Database))
+            {
+                try
+                {
+                    report.Databases = await _databaseDiagnostics
+                        .CollectAsync(connection, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Database diagnostics failed.");
+                    report.Metadata["database_skipped"] = ex.Message;
+                }
+            }
+        }
+
+        if (effectiveOptions.GenerateRecommendations)
+        {
+            GenerateRecommendations(report);
+        }
 
         return report;
     }
 
-    public async Task<DiagnosticReport> RunComprehensiveAsync(
-        string connectionString,
-        CancellationToken cancellationToken = default)
+    private static bool NeedsSqlConnection(DiagnosticCategories categories) =>
+        (categories & (DiagnosticCategories.Query | DiagnosticCategories.Server | DiagnosticCategories.Database)) != 0;
+
+    private sealed class DiagnosticsObservable : IObservable<DiagnosticSnapshot>
     {
-        EnsureNotDisposed();
+        private readonly SqlDiagnosticsClient _client;
+        private readonly string _connectionString;
+        private readonly TimeSpan _interval;
+        private readonly DiagnosticOptions? _options;
 
-        var report = await RunQuickCheckAsync(connectionString, cancellationToken).ConfigureAwait(false);
-        using var connection = new SqlConnection(connectionString);
+        public DiagnosticsObservable(
+            SqlDiagnosticsClient client,
+            string connectionString,
+            TimeSpan interval,
+            DiagnosticOptions? options)
+        {
+            _client = client;
+            _connectionString = connectionString;
+            _interval = interval;
+            _options = options;
+        }
 
-        report.Server = await _serverDiagnostics.CollectAsync(connection, cancellationToken).ConfigureAwait(false);
-        report.Databases = await _databaseDiagnostics.CollectAsync(connection, cancellationToken).ConfigureAwait(false);
-        report.Metadata["collection_mode"] = "comprehensive";
+        public IDisposable Subscribe(IObserver<DiagnosticSnapshot> observer)
+        {
+            if (observer is null)
+            {
+                throw new ArgumentNullException(nameof(observer));
+            }
 
-        return report;
+            var subscription = new DiagnosticsSubscription(_client, _connectionString, _interval, _options?.Clone(), observer);
+            subscription.Start();
+            return subscription;
+        }
+
+        private sealed class DiagnosticsSubscription : IDisposable
+        {
+            private readonly SqlDiagnosticsClient _client;
+            private readonly string _connectionString;
+            private readonly TimeSpan _interval;
+            private readonly DiagnosticOptions? _options;
+            private readonly IObserver<DiagnosticSnapshot> _observer;
+            private readonly CancellationTokenSource _cts = new();
+            private readonly object _gate = new();
+            private Task? _loop;
+            private bool _disposed;
+            private bool _cleanedUp;
+
+            public DiagnosticsSubscription(
+                SqlDiagnosticsClient client,
+                string connectionString,
+                TimeSpan interval,
+                DiagnosticOptions? options,
+                IObserver<DiagnosticSnapshot> observer)
+            {
+                _client = client;
+                _connectionString = connectionString;
+                _interval = interval;
+                _options = options;
+                _observer = observer;
+            }
+
+            public void Start()
+            {
+                _loop = Task.Run(ExecuteAsync);
+            }
+
+            private async Task ExecuteAsync()
+            {
+                try
+                {
+                    while (!_cts.IsCancellationRequested)
+                    {
+                        DiagnosticReport report;
+                        try
+                        {
+                            if (_options is null)
+                            {
+                                report = await _client.RunQuickCheckAsync(_connectionString, _cts.Token).ConfigureAwait(false);
+                            }
+                            else
+                            {
+                                report = await _client.RunFullDiagnosticsAsync(_connectionString, _options, _cts.Token).ConfigureAwait(false);
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            _observer.OnError(ex);
+                            return;
+                        }
+
+                        _observer.OnNext(new DiagnosticSnapshot(DateTime.UtcNow, report));
+
+                        try
+                        {
+                            await Task.Delay(_interval, _cts.Token).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            break;
+                        }
+                    }
+
+                    _observer.OnCompleted();
+                    Cleanup();
+                }
+            }
+
+            public void Dispose()
+            {
+                lock (_gate)
+                {
+                    if (_disposed)
+                    {
+                        return;
+                    }
+
+                    _disposed = true;
+                }
+
+                _cts.Cancel();
+                var loop = _loop;
+                if (loop is not null)
+                {
+                    try
+                    {
+                        loop.GetAwaiter().GetResult();
+                    }
+                    catch
+                    {
+                        // Swallow exceptions when tearing down the loop.
+                    }
+                }
+
+                Cleanup();
+            }
+
+            private void Cleanup()
+            {
+                lock (_gate)
+                {
+                    if (_cleanedUp)
+                    {
+                        return;
+                    }
+
+                    _cleanedUp = true;
+                }
+
+                _cts.Dispose();
+            }
+        }
     }
 
-    private static void GenerateRecommendations(DiagnosticReport report)
+    private void GenerateRecommendations(DiagnosticReport report)
     {
         if (report.Connection is { AverageConnectionTime: { } average } && average > TimeSpan.FromMilliseconds(500))
         {
@@ -128,6 +434,27 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
                 Issue = "High jitter detected",
                 RecommendationText = "Investigate network congestion or wireless links along the path."
             });
+        }
+
+        foreach (var rule in _recommendationRules)
+        {
+            try
+            {
+                if (!rule.Applies(report))
+                {
+                    continue;
+                }
+
+                var recommendation = rule.Generate(report);
+                if (recommendation is not null)
+                {
+                    report.Recommendations.Add(recommendation);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Recommendation rule {Rule} execution failed.", rule.GetType().Name);
+            }
         }
     }
 

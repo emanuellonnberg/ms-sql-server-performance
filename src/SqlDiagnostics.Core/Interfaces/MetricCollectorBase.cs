@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
 
-namespace SqlDiagnostics.Interfaces;
+namespace SqlDiagnostics.Core.Interfaces;
 
 /// <summary>
 /// Provides retry-aware scaffolding for collectors that execute SQL against a target instance.
