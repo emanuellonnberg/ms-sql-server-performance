@@ -198,9 +198,11 @@ internal static class Program
                     builder.AppendLine($"    Log Used: {logUsed:N1}%");
                 }
 
-                if (database.ActiveSessionCount is { } sessions || database.RunningRequestCount is { } requests)
+                var sessions = database.ActiveSessionCount;
+                var requests = database.RunningRequestCount;
+                if (sessions.HasValue || requests.HasValue)
                 {
-                    builder.AppendLine($"    Sessions: {sessions}, Active Requests: {requests}");
+                    builder.AppendLine($"    Sessions: {(sessions.HasValue ? sessions.Value.ToString("N0") : "n/a")}, Active Requests: {(requests.HasValue ? requests.Value.ToString("N0") : "n/a")}");
                 }
             }
 
