@@ -19,6 +19,19 @@ This document outlines improvements to the SQL Diagnostics Toolkit specifically 
   2. Enable comprehensive logging that customers can send back for analysis
   3. Support both active debugging (dev environment) and passive monitoring (production)
 
+### Implementation Status – November 2025
+
+| Initiative | Status | Notes |
+| --- | --- | --- |
+| DataSet-specific diagnostics module | ✅ Delivered | `DataSetDiagnostics`, instrumentation wrapper, anti-pattern analysis |
+| Structured diagnostic logging & packaging | ✅ Delivered | `DiagnosticLogger` with JSON/rolling sinks + zip packaging helper |
+| Automated baselines & regression detection | ✅ Delivered | `BaselineManager`, `RegressionReport`, CLI `baseline` commands |
+| Quick triage workflow | ✅ Delivered | `QuickTriage` probes + CLI `triage` command |
+| Connection pool health monitoring | ✅ Delivered | `ConnectionPoolMonitor`, health summary models, tests |
+| CLI enhancements | ✅ Delivered | `triage`, `baseline capture/compare`, `dataset-test`, `package` |
+| Developer integration & NuGet packaging | ✅ Delivered | `SqlDiagnosticsIntegration` helpers, sample app refresh, README/Quick Start |
+| Remaining roadmap | ▶️ Planned | Alerting, historical dashboards, anomaly detection (see Post-MVP backlog) |
+
 ---
 
 ## Problem Statement
