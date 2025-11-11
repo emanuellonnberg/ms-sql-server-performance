@@ -20,9 +20,10 @@
         <Border Padding="12" Background="#f7f9fc" CornerRadius="6" BorderBrush="#d0d7e3" BorderThickness="1">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="Auto"/>
-                      <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -58,7 +59,13 @@
                         Width="180"
                         Margin="12,0,0,0"
                         Click="OnShowConnectionQuality" />
-                  <Button Grid.Column="5"
+                <Button Grid.Column="5"
+                        Content="Quick Triage…"
+                        Width="140"
+                        Margin="12,0,0,0"
+                        IsEnabled="{Binding CanOpenQuickTriage}"
+                        Click="OnShowQuickTriage"/>
+                <Button Grid.Column="6"
                           Content="Full Diagnostics…"
                           Width="160"
                           Margin="12,0,0,0"

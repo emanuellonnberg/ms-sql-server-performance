@@ -66,6 +66,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
                 StartCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(IsStartEnabled));
                 OnPropertyChanged(nameof(CanOpenFullDiagnostics));
+                OnPropertyChanged(nameof(CanOpenQuickTriage));
             }
         }
     }
@@ -81,6 +82,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
                 StopCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(IsStartEnabled));
                 OnPropertyChanged(nameof(CanOpenFullDiagnostics));
+                OnPropertyChanged(nameof(CanOpenQuickTriage));
             }
         }
     }
@@ -88,6 +90,8 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
     public bool IsStartEnabled => !IsMonitoring && !string.IsNullOrWhiteSpace(ConnectionString);
 
     public bool CanOpenFullDiagnostics => IsMonitoring && !string.IsNullOrWhiteSpace(ConnectionString);
+
+    public bool CanOpenQuickTriage => !string.IsNullOrWhiteSpace(ConnectionString);
 
     public string StatusMessage
     {
