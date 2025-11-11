@@ -20,7 +20,8 @@
         <Border Padding="12" Background="#f7f9fc" CornerRadius="6" BorderBrush="#d0d7e3" BorderThickness="1">
             <Grid VerticalAlignment="Center">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                      <ColumnDefinition Width="Auto"/>
+                      <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -57,6 +58,12 @@
                         Width="180"
                         Margin="12,0,0,0"
                         Click="OnShowConnectionQuality" />
+                  <Button Grid.Column="5"
+                          Content="Full Diagnostics…"
+                          Width="160"
+                          Margin="12,0,0,0"
+                          IsEnabled="{Binding CanOpenFullDiagnostics}"
+                          Click="OnShowFullDiagnostics"/>
             </Grid>
         </Border>
 

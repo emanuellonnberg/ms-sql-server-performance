@@ -53,4 +53,25 @@ public partial class MainWindow : Window
 
         ConnectionQualityDialogLauncher.Show(options, this);
     }
+
+    private void OnShowFullDiagnostics(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is not RealtimeDiagnosticsViewModel vm)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(vm.ConnectionString))
+        {
+            MessageBox.Show(this, "Provide a connection string before opening full diagnostics.", "Full Diagnostics", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var window = new FullDiagnosticsWindow(vm.ConnectionString)
+        {
+            Owner = this
+        };
+
+        window.Show();
+    }
 }

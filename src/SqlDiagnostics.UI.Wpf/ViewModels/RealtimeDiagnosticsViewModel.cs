@@ -64,6 +64,8 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
             if (SetField(ref _connectionString, value))
             {
                 StartCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(IsStartEnabled));
+                OnPropertyChanged(nameof(CanOpenFullDiagnostics));
             }
         }
     }
@@ -78,11 +80,14 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
                 StartCommand.RaiseCanExecuteChanged();
                 StopCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(IsStartEnabled));
+                OnPropertyChanged(nameof(CanOpenFullDiagnostics));
             }
         }
     }
 
     public bool IsStartEnabled => !IsMonitoring && !string.IsNullOrWhiteSpace(ConnectionString);
+
+    public bool CanOpenFullDiagnostics => IsMonitoring && !string.IsNullOrWhiteSpace(ConnectionString);
 
     public string StatusMessage
     {
