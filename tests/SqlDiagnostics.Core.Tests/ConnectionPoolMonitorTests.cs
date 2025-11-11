@@ -20,15 +20,28 @@ public sealed class ConnectionPoolMonitorTests
             new ConnectionPoolSnapshot { Success = true, AcquisitionTime = TimeSpan.FromMilliseconds(150), FreeConnections = 0, ActiveConnections = 30 }
         });
 
-        var monitor = new ConnectionPoolMonitor("Server=(local);Database=master;", _ => Task.FromResult(snapshots.Dequeue()));
+        var monitor = new ConnectionPoolMonitor("Server=(local);Database=master;", _ =>
+        {
+            if (snapshots.Count > 0)
+            {
+                return Task.FromResult(snapshots.Dequeue());
+            }
+
+            return Task.FromResult(new ConnectionPoolSnapshot
+            {
+                Success = false,
+                Error = "no-data",
+                AcquisitionTime = TimeSpan.FromMilliseconds(200)
+            });
+        });
 
         var report = await monitor.MonitorAsync(
-            duration: TimeSpan.FromMilliseconds(10),
-            sampleInterval: TimeSpan.FromMilliseconds(1),
+            duration: TimeSpan.FromMilliseconds(50),
+            sampleInterval: TimeSpan.FromMilliseconds(5),
             cancellationToken: CancellationToken.None);
 
-        Assert.True(report.Snapshots.Count > 0);
-        Assert.Contains(report.Snapshots, snapshot => snapshot.Error == "timeout");
-        Assert.NotNull(report.Summary);
+        Assert.True(report.Snapshots.Count >= 3);
+        Assert.NotEqual(ConnectionPoolIssueSeverity.Healthy, report.Summary.Severity);
+        Assert.True(report.Summary.Issues.Count > 0);
     }
 }

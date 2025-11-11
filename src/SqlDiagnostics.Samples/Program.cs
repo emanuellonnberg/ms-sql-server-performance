@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
-using SqlDiagnostics.Core;
+using SqlDiagnostics.Core.Baseline;
+using SqlDiagnostics.Core.Integration;
 
 namespace SqlDiagnostics.Samples;
 
@@ -17,9 +18,30 @@ public static class Program
             return;
         }
 
-        using var client = new SqlDiagnosticsClient();
-        var report = await client.RunQuickCheckAsync(connectionString);
+        using var logger = SqlDiagnosticsIntegration.CreateDefaultLogger(enableConsole: true);
+        using var client = SqlDiagnosticsIntegration.CreateClient(logger);
 
-        Console.WriteLine($"Quick check complete. Success rate: {report.Connection?.SuccessRate:P1}");
+        var report = await client.RunQuickCheckAsync(connectionString);
+        Console.WriteLine($"Quick check complete. Health score: {report.GetHealthScore()}/100");
+
+        var triage = await SqlDiagnosticsIntegration.RunQuickTriageAsync(
+            connectionString,
+            progress: new Progress<string>(message => Console.WriteLine($"  {message}")));
+
+        Console.WriteLine($"Triage diagnosis: {triage.Diagnosis.Category} - {triage.Diagnosis.Summary}");
+
+        try
+        {
+            var baseline = await SqlDiagnosticsIntegration.CaptureBaselineAsync(
+                connectionString,
+                baselineName: "developer-baseline",
+                options: new BaselineOptions { SampleCount = 3, SampleInterval = TimeSpan.FromSeconds(1) });
+
+            Console.WriteLine($"Captured baseline '{baseline.Name}' with {baseline.SampleCount} samples.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Baseline capture failed: {ex.Message}");
+        }
     }
 }

@@ -12,11 +12,29 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>SqlDiagnostics.Core</PackageId>
+    <PackageVersion>0.3.0-preview</PackageVersion>
+    <Authors>SqlDiagnostics Team</Authors>
+    <Company>SqlDiagnostics</Company>
+    <RepositoryUrl>https://github.com/example/SqlDiagnostics</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/example/SqlDiagnostics</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>sql server diagnostics performance logging baseline triage</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
     <PackageReference Include="System.Text.Json" Version="8.0.3" />
     <PackageReference Include="System.IO.Compression" Version="4.3.0" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
     <PackageReference Include="System.IO.Compression.ZipFile" Version="4.3.0" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="" />
+    <None Include="..\..\QUICK_START.md" Pack="true" PackagePath="docs\" />
   </ItemGroup>
 </Project>
