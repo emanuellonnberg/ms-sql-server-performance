@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -6,12 +7,14 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using SqlDiagnostics.Core.Triage;
+using System.Text.Json;
 
 namespace SqlDiagnostics.UI.Wpf.ViewModels;
 
 public sealed class QuickTriageViewModel : INotifyPropertyChanged
 {
     private readonly ObservableCollection<string> _progressMessages = new();
+    private readonly ObservableCollection<TriageTestViewModel> _tests = new();
     private TriageResult? _result;
     private bool _isRunning;
     private string _statusMessage = "Ready to run triage.";
@@ -23,10 +26,12 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ReadOnlyObservableCollection<string> ProgressMessages { get; }
+    public ReadOnlyObservableCollection<TriageTestViewModel> Tests { get; }
 
     public QuickTriageViewModel()
     {
         ProgressMessages = new ReadOnlyObservableCollection<string>(_progressMessages);
+        Tests = new ReadOnlyObservableCollection<TriageTestViewModel>(_tests);
     }
 
     public bool IsRunning
@@ -77,6 +82,8 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
         ? string.Join(Environment.NewLine, _result.Diagnosis.Recommendations)
         : "No recommendations.";
 
+    public bool HasResult => _result is not null;
+
     public async Task RunAsync(string connectionString)
     {
         if (IsRunning)
@@ -122,11 +129,13 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
             Category = "Unknown";
             Diagnosis = ex.Message;
             DurationText = "—";
+            _tests.Clear();
         }
         finally
         {
             IsRunning = false;
             OnPropertyChanged(nameof(RecommendationsText));
+            OnPropertyChanged(nameof(HasResult));
         }
     }
 
@@ -144,6 +153,96 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
         builder.AppendLine($"Blocking: {(result.Blocking.Success ? "OK" : "FAIL")} - {result.Blocking.Details}");
 
         Summary = builder.ToString();
+        UpdateTests(result);
+        OnPropertyChanged(nameof(RecommendationsText));
+        OnPropertyChanged(nameof(HasResult));
+    }
+
+    private void UpdateTests(TriageResult result)
+    {
+        _tests.Clear();
+        _tests.Add(CreateTestViewModel(result.Network));
+        _tests.Add(CreateTestViewModel(result.Connection));
+        _tests.Add(CreateTestViewModel(result.Query));
+        _tests.Add(CreateTestViewModel(result.Server));
+        _tests.Add(CreateTestViewModel(result.Blocking));
+    }
+
+    private static TriageTestViewModel CreateTestViewModel(TestResult result) =>
+        new(result.Name, result.Success, result.Details, result.Duration, result.Issues);
+
+    public string BuildJsonReport()
+    {
+        if (_result is null)
+        {
+            throw new InvalidOperationException("Quick triage has not been run yet.");
+        }
+
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true
+        };
+
+        return JsonSerializer.Serialize(_result, options);
+    }
+
+    public string BuildMarkdownReport()
+    {
+        if (_result is null)
+        {
+            throw new InvalidOperationException("Quick triage has not been run yet.");
+        }
+
+        var builder = new StringBuilder();
+        builder.AppendLine("# Quick Triage Report");
+        builder.AppendLine();
+        builder.AppendLine($"- **Started:** {_result.StartedAtUtc:O}");
+        builder.AppendLine($"- **Completed:** {_result.CompletedAtUtc:O}");
+        builder.AppendLine($"- **Duration:** {_result.Duration.TotalSeconds:N1} seconds");
+        builder.AppendLine($"- **Diagnosis:** {_result.Diagnosis.Category} – {_result.Diagnosis.Summary}");
+        builder.AppendLine();
+        builder.AppendLine("## Tests");
+
+        IEnumerable<TestResult> tests = new[]
+        {
+            _result.Network,
+            _result.Connection,
+            _result.Query,
+            _result.Server,
+            _result.Blocking
+        };
+
+        foreach (var test in tests)
+        {
+            builder.AppendLine($"### {test.Name}");
+            builder.AppendLine($"- Status: {(test.Success ? "Pass" : "Fail")}");
+            builder.AppendLine($"- Details: {test.Details}");
+            builder.AppendLine($"- Duration: {(test.Duration > TimeSpan.Zero ? $"{test.Duration.TotalMilliseconds:N0} ms" : "n/a")}");
+            if (test.Issues.Count > 0)
+            {
+                builder.AppendLine("- Issues:");
+                foreach (var issue in test.Issues)
+                {
+                    builder.AppendLine($"  - {issue}");
+                }
+            }
+            else
+            {
+                builder.AppendLine("- Issues: None");
+            }
+            builder.AppendLine();
+        }
+
+        if (_result.Diagnosis.Recommendations.Count > 0)
+        {
+            builder.AppendLine("## Recommendations");
+            foreach (var recommendation in _result.Diagnosis.Recommendations)
+            {
+                builder.AppendLine($"- {recommendation}");
+            }
+        }
+
+        return builder.ToString();
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
@@ -160,4 +259,30 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
+public sealed class TriageTestViewModel
+{
+    public TriageTestViewModel(string name, bool success, string details, TimeSpan duration, IReadOnlyList<string> issues)
+    {
+        Name = name;
+        Success = success;
+        Details = details;
+        Duration = duration;
+        Issues = issues;
+    }
+
+    public string Name { get; }
+    public bool Success { get; }
+    public string Details { get; }
+    public TimeSpan Duration { get; }
+    public IReadOnlyList<string> Issues { get; }
+
+    public string StatusText => Success ? "Pass" : "Fail";
+
+    public string DurationDisplay => Duration > TimeSpan.Zero
+        ? $"{Duration.TotalMilliseconds:N0} ms"
+        : "n/a";
+
+    public bool HasIssues => Issues.Count > 0;
 }
