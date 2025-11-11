@@ -3,7 +3,7 @@ using System.Windows.Input;
 
 namespace SqlDiagnostics.UI.Wpf.ViewModels;
 
-internal sealed class RelayCommand : ICommand
+public sealed class RelayCommand : ICommand
 {
     private readonly Func<bool>? _canExecute;
     private readonly Action _execute;
