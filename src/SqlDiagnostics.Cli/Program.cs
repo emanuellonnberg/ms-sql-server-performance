@@ -1,11 +1,18 @@
 using System;
+using System.Data;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Data.SqlClient;
 using SqlDiagnostics.Core;
+using SqlDiagnostics.Core.Baseline;
+using SqlDiagnostics.Core.Diagnostics.Dataset;
+using SqlDiagnostics.Core.Logging;
 using SqlDiagnostics.Core.Reports;
+using SqlDiagnostics.Core.Triage;
 
 namespace SqlDiagnostics.Cli;
 
@@ -17,6 +24,8 @@ internal static class Program
     private const string FormatShortOption = "-f";
     private const string OutputOption = "--output";
     private const string OutputShortOption = "-o";
+    private const string LogDirectoryOption = "--log-dir";
+    private const string LogDirectoryShortOption = "-l";
 
     public static async Task<int> Main(string[] args)
     {
@@ -27,19 +36,38 @@ internal static class Program
         }
 
         var command = args[0].ToLowerInvariant();
+        var logDirectory = GetOptionValue(args, LogDirectoryOption, LogDirectoryShortOption);
 
-        ReportFormat? exportFormat;
-        string? exportPath;
+        DiagnosticLogger? diagnosticLogger = null;
+        if (!string.IsNullOrWhiteSpace(logDirectory))
+        {
+            diagnosticLogger = new DiagnosticLogger(new DiagnosticLoggerOptions
+            {
+                LogDirectory = logDirectory
+            });
+        }
+
         try
         {
-            (exportFormat, exportPath) = ResolveExportOptions(args);
+            return command switch
+            {
+                "quick" => await ExecuteDiagnosticsAsync(DiagnosticsMode.Quick, args, diagnosticLogger).ConfigureAwait(false),
+                "comprehensive" or "full" => await ExecuteDiagnosticsAsync(DiagnosticsMode.Full, args, diagnosticLogger).ConfigureAwait(false),
+                "triage" => await ExecuteTriageAsync(args, diagnosticLogger).ConfigureAwait(false),
+                "baseline" => await ExecuteBaselineAsync(args).ConfigureAwait(false),
+                "package" => await ExecutePackageAsync(args, logDirectory).ConfigureAwait(false),
+                "dataset-test" => await ExecuteDatasetTestAsync(args, diagnosticLogger).ConfigureAwait(false),
+                _ => UnknownCommand(command)
+            };
         }
-        catch (ArgumentException ex)
+        finally
         {
-            Console.Error.WriteLine(ex.Message);
-            return 1;
+            diagnosticLogger?.Dispose();
         }
+    }
 
+    private static async Task<int> ExecuteDiagnosticsAsync(DiagnosticsMode mode, string[] args, DiagnosticLogger? diagnosticLogger)
+    {
         var connectionString = ResolveConnectionString(args);
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -47,25 +75,16 @@ internal static class Program
             return 1;
         }
 
+        (var exportFormat, var exportPath) = ResolveExportOptions(args);
+
         try
         {
-            using var client = new SqlDiagnosticsClient();
-            DiagnosticReport report;
-            try
+            using var client = new SqlDiagnosticsClient(diagnosticLogger: diagnosticLogger);
+            DiagnosticReport report = mode switch
             {
-                report = command switch
-                {
-                    "quick" => await client.RunQuickCheckAsync(connectionString).ConfigureAwait(false),
-                    "comprehensive" or "full" => await client.RunFullDiagnosticsAsync(connectionString).ConfigureAwait(false),
-                    _ => throw new ArgumentException($"Unknown command '{command}'.")
-                };
-            }
-            catch (ArgumentException ex)
-            {
-                Console.Error.WriteLine(ex.Message);
-                PrintHelp();
-                return 1;
-            }
+                DiagnosticsMode.Quick => await client.RunQuickCheckAsync(connectionString).ConfigureAwait(false),
+                _ => await client.RunFullDiagnosticsAsync(connectionString).ConfigureAwait(false)
+            };
 
             var textReport = BuildTextReport(report);
 
@@ -74,7 +93,7 @@ internal static class Program
                 Console.WriteLine(textReport);
                 if (!string.IsNullOrWhiteSpace(exportPath))
                 {
-                    await File.WriteAllTextAsync(exportPath, textReport).ConfigureAwait(false);
+                    await File.WriteAllTextAsync(exportPath!, textReport).ConfigureAwait(false);
                     Console.WriteLine($"Report written to {exportPath}");
                 }
             }
@@ -88,11 +107,6 @@ internal static class Program
                 var content = await generator.GenerateAsync(report).ConfigureAwait(false);
                 await File.WriteAllTextAsync(actualPath, content).ConfigureAwait(false);
                 Console.WriteLine($"Report written to {actualPath}");
-                Console.WriteLine($"Health Score: {report.GetHealthScore()}/100");
-                if (report.BaselineComparison?.HealthScoreDelta is double delta)
-                {
-                    Console.WriteLine($"Baseline delta: {FormatDelta(delta, " pts")}");
-                }
             }
 
             return 0;
@@ -102,6 +116,200 @@ internal static class Program
             Console.Error.WriteLine($"Diagnostics failed: {ex.Message}");
             return 1;
         }
+    }
+
+    private static async Task<int> ExecuteTriageAsync(string[] args, DiagnosticLogger? logger)
+    {
+        var connectionString = ResolveConnectionString(args);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Console.Error.WriteLine("A connection string must be provided for triage.");
+            return 1;
+        }
+
+        var progress = new Progress<string>(message => Console.WriteLine(message));
+        var triage = await QuickTriage.RunAsync(connectionString, options: null, progress, CancellationToken.None).ConfigureAwait(false);
+
+        logger?.LogEvent(new DiagnosticEvent
+        {
+            EventType = DiagnosticEventType.General,
+            Severity = EventSeverity.Info,
+            Message = $"Triage completed with category {triage.Diagnosis.Category}",
+            Data = triage
+        });
+
+        Console.WriteLine();
+        Console.WriteLine("=== Quick Triage Summary ===");
+        Console.WriteLine($"Result: {triage.Diagnosis.Category} - {triage.Diagnosis.Summary}");
+        Console.WriteLine($"Duration: {triage.Duration.TotalSeconds:N1} seconds");
+        Console.WriteLine();
+
+        PrintTestResult(triage.Network);
+        PrintTestResult(triage.Connection);
+        PrintTestResult(triage.Query);
+        PrintTestResult(triage.Server);
+        PrintTestResult(triage.Blocking);
+
+        if (triage.Diagnosis.Recommendations.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Recommendations:");
+            foreach (var recommendation in triage.Diagnosis.Recommendations)
+            {
+                Console.WriteLine($"  - {recommendation}");
+            }
+        }
+
+        return 0;
+    }
+
+    private static async Task<int> ExecuteBaselineAsync(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("Baseline command requires a subcommand: capture or compare.");
+            return 1;
+        }
+
+        var subcommand = args[1].ToLowerInvariant();
+        var connectionString = ResolveConnectionString(args);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Console.Error.WriteLine("A connection string must be provided for baseline operations.");
+            return 1;
+        }
+
+        var baselineName = GetOptionValue(args, "--name", "-n");
+        var storeDirectory = GetOptionValue(args, "--baseline-dir", "-bd") ??
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SqlDiagnostics", "Baselines");
+
+        var manager = new BaselineManager(storeDirectory);
+
+        if (subcommand == "capture")
+        {
+            if (string.IsNullOrWhiteSpace(baselineName))
+            {
+                Console.Error.WriteLine("Baseline capture requires --name <baseline-name>.");
+                return 1;
+            }
+
+            var sampleCount = ParseIntOption(args, "--samples", "-s") ?? 5;
+            var intervalSeconds = ParseIntOption(args, "--interval", "-i") ?? 2;
+
+            var options = new BaselineOptions
+            {
+                SampleCount = sampleCount,
+                SampleInterval = TimeSpan.FromSeconds(intervalSeconds)
+            };
+
+            Console.WriteLine($"Capturing baseline '{baselineName}' with {sampleCount} samples...");
+            var baseline = await manager.CaptureBaselineAsync(connectionString, baselineName, options, CancellationToken.None).ConfigureAwait(false);
+            Console.WriteLine($"Captured baseline '{baseline.Name}' at {baseline.CapturedAtUtc:O}.");
+            return 0;
+        }
+
+        if (subcommand == "compare")
+        {
+            var report = await manager.CompareToBaselineAsync(connectionString, baselineName, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+            if (!report.Success)
+            {
+                Console.WriteLine(report.Message);
+                return 1;
+            }
+
+            Console.WriteLine($"Baseline comparison against '{report.BaselineName}' captured {report.BaselineCapturedAtUtc:O}");
+            if (!report.HasFindings)
+            {
+                Console.WriteLine(report.Message);
+                return 0;
+            }
+
+            foreach (var finding in report.Findings)
+            {
+                Console.WriteLine($"[{finding.Severity}] {finding.Category}: {finding.Description}");
+                if (!string.IsNullOrWhiteSpace(finding.BaselineValue) || !string.IsNullOrWhiteSpace(finding.CurrentValue))
+                {
+                    Console.WriteLine($"  Baseline: {finding.BaselineValue ?? "n/a"}, Current: {finding.CurrentValue ?? "n/a"}");
+                }
+            }
+
+            return report.HasFindings ? 2 : 0;
+        }
+
+        Console.Error.WriteLine($"Unknown baseline subcommand '{subcommand}'.");
+        return 1;
+    }
+
+    private static async Task<int> ExecutePackageAsync(string[] args, string? logDirectory)
+    {
+        var fromDays = ParseIntOption(args, "--days", "-d") ?? 7;
+        logDirectory ??= GetOptionValue(args, LogDirectoryOption, LogDirectoryShortOption) ??
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SqlDiagnostics", "Logs");
+
+        Console.WriteLine($"Creating diagnostic package from '{logDirectory}' (last {fromDays} days)...");
+        try
+        {
+            var packagePath = await DiagnosticLogger.CreatePackageAsync(
+                logDirectory,
+                DateTime.UtcNow.AddDays(-fromDays),
+                cancellationToken: CancellationToken.None).ConfigureAwait(false);
+            Console.WriteLine($"Package created: {packagePath}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to create package: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static async Task<int> ExecuteDatasetTestAsync(string[] args, DiagnosticLogger? logger)
+    {
+        var connectionString = ResolveConnectionString(args);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Console.Error.WriteLine("A connection string must be provided for dataset-test.");
+            return 1;
+        }
+
+        var query = GetOptionValue(args, "--query", "-q") ?? "SELECT TOP 50 * FROM sys.objects";
+
+        try
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+
+            using var command = new SqlCommand(query, connection);
+            using var adapter = new SqlDataAdapter(command);
+
+            var diagnostics = new DataSetDiagnostics();
+            using var instrumented = diagnostics.Instrument(adapter);
+            var dataSet = new DataSet();
+            var metrics = await instrumented.FillAsync(dataSet, operationName: "dataset-test").ConfigureAwait(false);
+
+            logger?.LogEvent(new DiagnosticEvent
+            {
+                EventType = DiagnosticEventType.Dataset,
+                Severity = metrics.Error is null ? EventSeverity.Info : EventSeverity.Error,
+                Message = $"Dataset instrumentation captured {metrics.RowCount} rows across {metrics.TableCount} tables.",
+                Data = metrics
+            });
+
+            Console.WriteLine(metrics.GetPerformanceSummary());
+            return metrics.Error is null ? 0 : 1;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Dataset instrumentation failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private static int UnknownCommand(string command)
+    {
+        Console.Error.WriteLine($"Unknown command '{command}'.");
+        PrintHelp();
+        return 1;
     }
 
     private static string? ResolveConnectionString(string[] args)
@@ -202,22 +410,89 @@ internal static class Program
         return false;
     }
 
+    private static string? GetOptionValue(string[] args, string option, string? shortOption = null)
+    {
+        for (var i = 0; i < args.Length; i++)
+        {
+            var current = args[i];
+            if (current.StartsWith(option + "=", StringComparison.OrdinalIgnoreCase))
+            {
+                return current[(option.Length + 1)..];
+            }
+
+            if (!string.IsNullOrWhiteSpace(shortOption) &&
+                current.StartsWith(shortOption + "=", StringComparison.OrdinalIgnoreCase))
+            {
+                return current[(shortOption.Length + 1)..];
+            }
+
+            if (current.Equals(option, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(shortOption) && current.Equals(shortOption, StringComparison.OrdinalIgnoreCase)))
+            {
+                if (i + 1 < args.Length)
+                {
+                    return args[i + 1];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static int? ParseIntOption(string[] args, string option, string? shortOption = null)
+    {
+        var value = GetOptionValue(args, option, shortOption);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : null;
+    }
+
     private static void PrintHelp()
     {
         Console.WriteLine("SQL Diagnostics CLI");
         Console.WriteLine();
         Console.WriteLine("Usage:");
-        Console.WriteLine("  sqldiag quick --connection \"<connection-string>\"");
-        Console.WriteLine("  sqldiag quick --connection=<connection-string>");
+        Console.WriteLine("  sqldiag quick --connection \"<connection-string>\" [--format text|json|html|markdown] [--output path]");
         Console.WriteLine("  sqldiag comprehensive --connection \"<connection-string>\"");
-        Console.WriteLine("  sqldiag comprehensive --connection=<connection-string>");
+        Console.WriteLine("  sqldiag triage --connection \"<connection-string>\"");
+        Console.WriteLine("  sqldiag baseline capture --connection \"<connection-string>\" --name <baseline-name> [--samples N] [--interval seconds] [--baseline-dir path]");
+        Console.WriteLine("  sqldiag baseline compare --connection \"<connection-string>\" [--name baseline-name] [--baseline-dir path]");
+        Console.WriteLine("  sqldiag dataset-test --connection \"<connection-string>\" [--query \"SQL\"]");
+        Console.WriteLine("  sqldiag package [--log-dir path] [--days N]");
         Console.WriteLine();
         Console.WriteLine("Options:");
-        Console.WriteLine("  --format, -f <text|json|html|markdown>   Output format (default text)");
-        Console.WriteLine("  --output, -o <path>                      Write report to a file");
+        Console.WriteLine("  --connection, -c <string>          SQL connection string (or set SQLDIAG_CONNECTION_STRING).");
+        Console.WriteLine("  --log-dir, -l <path>               Directory where diagnostics logs are written.");
+        Console.WriteLine("  --format, -f <format>              Output format for quick/comprehensive commands.");
+        Console.WriteLine("  --output, -o <path>                Write diagnostics report to file.");
+        Console.WriteLine("  --name, -n <name>                  Baseline name for capture/compare.");
+        Console.WriteLine("  --samples, -s <number>             Number of samples collected during baseline capture.");
+        Console.WriteLine("  --interval, -i <seconds>           Delay between baseline samples (seconds).");
+        Console.WriteLine("  --baseline-dir, -bd <path>         Directory where baselines are stored.");
+        Console.WriteLine("  --days, -d <number>                Number of days of logs to include in package.");
         Console.WriteLine();
         Console.WriteLine("Environment variables:");
         Console.WriteLine("  SQLDIAG_CONNECTION_STRING   Default connection string when --connection is omitted.");
+    }
+
+    private static void PrintTestResult(TestResult result)
+    {
+        Console.WriteLine($"{result.Name,-10}: {(result.Success ? "OK" : "FAIL")} - {result.Details}");
+        foreach (var issue in result.Issues)
+        {
+            Console.WriteLine($"   * {issue}");
+        }
+    }
+
+    private enum DiagnosticsMode
+    {
+        Quick,
+        Full
     }
 
     private static string BuildTextReport(DiagnosticReport report)
