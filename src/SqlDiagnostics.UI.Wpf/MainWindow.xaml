@@ -105,8 +105,12 @@
 
                     <StackPanel Grid.Row="3">
                         <TextBlock Text="Network Metrics" FontSize="16" FontWeight="SemiBold"/>
-                        <UniformGrid Columns="3" Margin="0,12,0,0">
-                            <StackPanel Margin="0,0,12,0">
+                          <StackPanel Margin="0,12,0,0">
+                              <TextBlock Text="Target Host" FontWeight="SemiBold"/>
+                              <TextBlock Text="{Binding NetworkEndpointDisplay}" FontSize="16"/>
+                          </StackPanel>
+                          <UniformGrid Columns="3" Margin="12,12,0,0">
+                              <StackPanel Margin="0,0,12,0">
                                 <TextBlock Text="Avg RTT" FontWeight="SemiBold"/>
                                 <TextBlock Text="{Binding NetworkLatencyDisplay}" FontSize="16"/>
                             </StackPanel>
@@ -119,6 +123,17 @@
                                 <TextBlock Text="{Binding NetworkStatus}" FontSize="16"/>
                             </StackPanel>
                         </UniformGrid>
+                          <StackPanel Margin="0,16,0,0">
+                              <TextBlock Text="DNS Resolution" FontWeight="SemiBold"/>
+                              <TextBlock Text="{Binding DnsResolutionDisplay}" FontSize="16"/>
+                              <TextBlock Text="{Binding DnsAddressesDisplay}" Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                          </StackPanel>
+                          <StackPanel Margin="0,16,0,0">
+                              <TextBlock Text="Port Connectivity" FontWeight="SemiBold"/>
+                              <TextBlock Text="{Binding PortStatusDisplay}" FontSize="16"/>
+                              <TextBlock Text="{Binding PortRoundtripDisplay}" FontSize="14" Foreground="Gray" Margin="0,4,0,0"/>
+                              <TextBlock Text="{Binding PortFailureDisplay}" Foreground="Crimson" TextWrapping="Wrap" Visibility="{Binding PortFailureVisibility}" Margin="0,4,0,0"/>
+                          </StackPanel>
                     </StackPanel>
                 </Grid>
             </Border>

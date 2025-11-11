@@ -25,9 +25,15 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
     private string _attemptSummary = "0 / 0";
     private string _averageConnectionTimeDisplay = "—";
     private string _minMaxConnectionDisplay = "—";
+    private string _networkEndpointDisplay = "—";
     private string _networkLatencyDisplay = "—";
     private string _networkJitterDisplay = "—";
     private string _networkStatus = "No samples yet.";
+    private string _dnsResolutionDisplay = "—";
+    private string _dnsAddressesDisplay = "—";
+    private string _portStatusDisplay = "—";
+    private string _portRoundtripDisplay = "—";
+    private string _portFailureDisplay = string.Empty;
 
     public RealtimeDiagnosticsViewModel()
     {
@@ -132,6 +138,51 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         private set => SetField(ref _networkStatus, value);
     }
 
+    public string NetworkEndpointDisplay
+    {
+        get => _networkEndpointDisplay;
+        private set => SetField(ref _networkEndpointDisplay, value);
+    }
+
+    public string DnsResolutionDisplay
+    {
+        get => _dnsResolutionDisplay;
+        private set => SetField(ref _dnsResolutionDisplay, value);
+    }
+
+    public string DnsAddressesDisplay
+    {
+        get => _dnsAddressesDisplay;
+        private set => SetField(ref _dnsAddressesDisplay, value);
+    }
+
+    public string PortStatusDisplay
+    {
+        get => _portStatusDisplay;
+        private set => SetField(ref _portStatusDisplay, value);
+    }
+
+    public string PortRoundtripDisplay
+    {
+        get => _portRoundtripDisplay;
+        private set => SetField(ref _portRoundtripDisplay, value);
+    }
+
+    public string PortFailureDisplay
+    {
+        get => _portFailureDisplay;
+        private set
+        {
+            if (SetField(ref _portFailureDisplay, value))
+            {
+                OnPropertyChanged(nameof(PortFailureVisibility));
+            }
+        }
+    }
+
+    public Visibility PortFailureVisibility =>
+        string.IsNullOrWhiteSpace(PortFailureDisplay) ? Visibility.Collapsed : Visibility.Visible;
+
     public bool HasRecommendations => Recommendations.Count > 0;
 
     public Visibility NoRecommendationsVisibility => HasRecommendations ? Visibility.Collapsed : Visibility.Visible;
@@ -207,8 +258,11 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         UpdateStatus($"Monitoring {(report.TargetDataSource ?? "target")}…");
         LastUpdatedDisplay = $"Last updated: {snapshot.Timestamp:T}";
 
+        UpdateNetworkEndpoint(report);
         ApplyConnectionMetrics(report.Connection);
         ApplyNetworkMetrics(report.Network);
+        ApplyDnsMetrics(report.Dns);
+        ApplyPortMetrics(report.PortConnectivity);
         ApplyRecommendations(report);
     }
 
@@ -246,6 +300,62 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
             : metrics.Average.Value.TotalMilliseconds < 250
                 ? "Moderate latency"
                 : "High latency";
+    }
+
+    private void ApplyDnsMetrics(DnsMetrics? metrics)
+    {
+        if (metrics is null)
+        {
+            DnsResolutionDisplay = "—";
+            DnsAddressesDisplay = "—";
+            return;
+        }
+
+        DnsResolutionDisplay = FormatDuration(metrics.ResolutionTime);
+        DnsAddressesDisplay = metrics.Addresses.Count > 0
+            ? string.Join(", ", metrics.Addresses)
+            : "No addresses returned.";
+    }
+
+    private void ApplyPortMetrics(PortConnectivityResult? result)
+    {
+        if (result is null)
+        {
+            PortStatusDisplay = "Not probed";
+            PortRoundtripDisplay = "—";
+            PortFailureDisplay = string.Empty;
+            return;
+        }
+
+        PortStatusDisplay = result.IsAccessible ? "Accessible" : "Blocked";
+        PortRoundtripDisplay = FormatDuration(result.RoundtripTime);
+        PortFailureDisplay = !result.IsAccessible && !string.IsNullOrWhiteSpace(result.FailureReason)
+            ? result.FailureReason!
+            : string.Empty;
+    }
+
+    private void UpdateNetworkEndpoint(DiagnosticReport report)
+    {
+        if (report.Metadata.TryGetValue("network_host", out var hostObj) && hostObj is string host && !string.IsNullOrWhiteSpace(host))
+        {
+            if (report.Metadata.TryGetValue("network_port", out var portObj)
+                && portObj is IFormattable formattablePort)
+            {
+                NetworkEndpointDisplay = $"{host}:{formattablePort.ToString(null, null)}";
+            }
+            else if (report.Metadata.TryGetValue("network_port", out var portIntObj) && portIntObj is int portInt)
+            {
+                NetworkEndpointDisplay = $"{host}:{portInt}";
+            }
+            else
+            {
+                NetworkEndpointDisplay = host;
+            }
+        }
+        else
+        {
+            NetworkEndpointDisplay = report.TargetDataSource ?? "—";
+        }
     }
 
     private void ApplyRecommendations(DiagnosticReport report)
