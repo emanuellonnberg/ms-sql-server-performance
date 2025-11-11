@@ -13,6 +13,7 @@ using SqlDiagnostics.Core.Monitoring;
 using SqlDiagnostics.Core.Reports;
 using SqlDiagnostics.Core.Utilities;
 using Microsoft.Data.SqlClient;
+using SqlDiagnostics.Core.Logging;
 
 namespace SqlDiagnostics.Core;
 
@@ -27,10 +28,11 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
     private readonly DatabaseDiagnostics _databaseDiagnostics;
     private readonly ServerDiagnostics _serverDiagnostics;
     private readonly ILogger? _logger;
+    private readonly DiagnosticLogger? _diagnosticLogger;
     private readonly List<IRecommendationRule> _recommendationRules = new();
     private bool _disposed;
 
-    public SqlDiagnosticsClient(ILoggerFactory? loggerFactory = null)
+    public SqlDiagnosticsClient(ILoggerFactory? loggerFactory = null, DiagnosticLogger? diagnosticLogger = null)
     {
         _logger = loggerFactory?.CreateLogger<SqlDiagnosticsClient>();
         _connectionDiagnostics = new ConnectionDiagnostics(loggerFactory?.CreateLogger<ConnectionDiagnostics>());
@@ -38,6 +40,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
         _queryDiagnostics = new QueryDiagnostics();
         _serverDiagnostics = new ServerDiagnostics(loggerFactory?.CreateLogger<ServerDiagnostics>());
         _databaseDiagnostics = new DatabaseDiagnostics(loggerFactory?.CreateLogger<DatabaseDiagnostics>());
+        _diagnosticLogger = diagnosticLogger;
     }
 
     public ConnectionDiagnostics Connection => _connectionDiagnostics;
@@ -315,6 +318,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
             GenerateRecommendations(report);
         }
 
+        _diagnosticLogger?.LogReport(report);
         return report;
     }
 

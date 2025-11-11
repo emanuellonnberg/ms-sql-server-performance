@@ -33,26 +33,46 @@ SqlDiagnostics.sln
    ```
    dotnet run --project src/SqlDiagnostics.Cli -- quick --connection "$SQLDIAG_CONNECTION_STRING"
    ```
-4. Need a deeper report? Swap `quick` for `comprehensive` to include server, database, and query instrumentation.
+4. Need additional tooling?
+   - `sqldiag comprehensive` – full connection/network/query/server diagnostics  
+   - `sqldiag triage` – 30-second quick triage workflow  
+   - `sqldiag baseline capture` / `compare` – manage local performance baselines  
+   - `sqldiag dataset-test` – instrument a `SqlDataAdapter.Fill` call  
+   - `sqldiag package` – zip up the structured logs for support escalation
 
 The companion guide in `QUICK_START.md` walks through the end-to-end workflow, including exports, troubleshooting, and monitoring scenarios.
 
-To embed diagnostics inside your own application, reference `SqlDiagnostics.Core` and use the new quick-start presets:
+## NuGet Installation
+
+The `SqlDiagnostics.Core` library is NuGet-ready. Add it to your project with:
+
+```
+dotnet add package SqlDiagnostics.Core --prerelease
+```
+
+Package metadata (license, repository, README, quick-start docs) is embedded so `dotnet pack` or `dotnet build` will produce a distributable `.nupkg` automatically (`GeneratePackageOnBuild` is enabled).
+
+## Embedding in Your Application
+
+Use the integration helpers to wire up logging, triage, and baselines in just a few lines:
 
 ```csharp
-using SqlDiagnostics.Core;
-using SqlDiagnostics.Core.Client;
-using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Baseline;
+using SqlDiagnostics.Core.Integration;
 
-await using var client = new SqlDiagnosticsClient();
+using var diagnosticsLogger = SqlDiagnosticsIntegration.CreateDefaultLogger(enableConsole: true);
+using var client = SqlDiagnosticsIntegration.CreateClient(diagnosticsLogger);
 
-DiagnosticReport report = await client.RunFullDiagnosticsAsync(
-    connectionString,
-    QuickStartScenarios.ConnectionHealth(),
-    cancellationToken);
-
+var report = await client.RunFullDiagnosticsAsync(connectionString);
 Console.WriteLine($"Health Score: {report.GetHealthScore()}/100");
+
+var triage = await SqlDiagnosticsIntegration.RunQuickTriageAsync(connectionString);
+Console.WriteLine($"Triage: {triage.Diagnosis.Category} - {triage.Diagnosis.Summary}");
+
+await SqlDiagnosticsIntegration.CaptureBaselineAsync(connectionString, "production", new BaselineOptions { SampleCount = 5 });
 ```
+
+All logging activity flows through the new `DiagnosticLogger`, so you can opt-in to structured JSON or rolling text logs (and package them up for support) with a single helper call.
 
 ## Diagnostics Coverage (Initial Pass)
 

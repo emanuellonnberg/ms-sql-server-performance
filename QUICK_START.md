@@ -40,6 +40,14 @@ dotnet run --project src/SqlDiagnostics.Cli -- quick --connection "$SQLDIAG_CONN
 
 You will receive a detailed text report covering connection success rate, latency, network reachability, and highlighted recommendations. Add `--format json|html|markdown` to export the same report to a file (use `--output <path>` to set the destination).
 
+Other useful CLI workflows:
+
+- `dotnet run --project src/SqlDiagnostics.Cli -- triage` – 30-second quick triage with live progress  
+- `dotnet run --project src/SqlDiagnostics.Cli -- baseline capture --name production` – capture a baseline (defaults to 5 samples)  
+- `dotnet run --project src/SqlDiagnostics.Cli -- baseline compare --name production` – compare the current state versus a baseline  
+- `dotnet run --project src/SqlDiagnostics.Cli -- dataset-test --query "SELECT TOP 100 * FROM sys.objects"` – instrument a `SqlDataAdapter` load  
+- `dotnet run --project src/SqlDiagnostics.Cli -- package --days 3` – zip the structured logs for support escalation
+
 For a deeper sweep that includes server, database, and query insights:
 
 ```bash
@@ -50,30 +58,26 @@ dotnet run --project src/SqlDiagnostics.Cli -- comprehensive --connection "$SQLD
 
 ## 4. Embed diagnostics in your own code
 
-Reference the `SqlDiagnostics.Core` project or the published NuGet package (when available) and use the fluent builder to control scope. The new quick-start helpers give you presets that are ready to run.
+Reference the `SqlDiagnostics.Core` project or the published NuGet package and lean on the integration helpers for common workflows.
 
 ```csharp
-using SqlDiagnostics.Core;
-using SqlDiagnostics.Core.Client;
-using SqlDiagnostics.Core.Models;
+using SqlDiagnostics.Core.Baseline;
+using SqlDiagnostics.Core.Integration;
 
-await using var client = new SqlDiagnosticsClient();
+using var logger = SqlDiagnosticsIntegration.CreateDefaultLogger(enableConsole: true);
+using var client = SqlDiagnosticsIntegration.CreateClient(logger);
 
-// Quick connection + network check with sensible defaults
-DiagnosticReport connectionHealth =
-    await client.RunFullDiagnosticsAsync(
-        connectionString,
-        QuickStartScenarios.ConnectionHealth(),
-        cancellationToken);
+var report = await client.RunFullDiagnosticsAsync(connectionString);
+Console.WriteLine($"Health Score: {report.GetHealthScore()}/100");
 
-// Deeper performance profile for a specific workload
-DiagnosticReport deepDive =
-    await client.RunFullDiagnosticsAsync(
-        connectionString,
-        QuickStartScenarios.PerformanceDeepDive(
-            queryText: "EXEC dbo.usp_StartOfDayRefresh",
-            includePlans: true),
-        cancellationToken);
+var triage = await SqlDiagnosticsIntegration.RunQuickTriageAsync(connectionString);
+Console.WriteLine($"Triage: {triage.Diagnosis.Category} - {triage.Diagnosis.Summary}");
+
+// Capture a baseline for future comparisons
+await SqlDiagnosticsIntegration.CaptureBaselineAsync(
+    connectionString,
+    baselineName: "production",
+    options: new BaselineOptions { SampleCount = 5, SampleInterval = TimeSpan.FromSeconds(2) });
 ```
 
 Each preset still returns the rich `DiagnosticReport` so you can export, compare with baselines, or feed the results into alerting.
