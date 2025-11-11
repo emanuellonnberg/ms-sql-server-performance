@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using SqlDiagnostics.Core.Baseline;
 using SqlDiagnostics.Core.Integration;
+using SqlDiagnostics.Core.Reports;
 
 namespace SqlDiagnostics.Samples;
 
