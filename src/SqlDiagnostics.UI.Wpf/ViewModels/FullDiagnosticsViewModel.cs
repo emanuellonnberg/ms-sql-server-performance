@@ -10,6 +10,7 @@ using SqlDiagnostics.Core.Monitoring;
 using SqlDiagnostics.Core.Reports;
 using SqlDiagnostics.Core.Utilities;
 using System.Linq;
+using SqlDiagnostics.Core;
 
 namespace SqlDiagnostics.UI.Wpf.ViewModels;
 
