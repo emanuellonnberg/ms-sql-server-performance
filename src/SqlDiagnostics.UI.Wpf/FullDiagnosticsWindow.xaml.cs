@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using SqlDiagnostics.UI.Wpf.ViewModels;
+using SqlDiagnostics.Core.Utilities;
 
 namespace SqlDiagnostics.UI.Wpf;
 
