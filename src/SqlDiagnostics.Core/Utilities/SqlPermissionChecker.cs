@@ -77,13 +77,19 @@ public static class SqlPermissionChecker
         if (requirement.PermissionClass.Equals("SERVER", StringComparison.OrdinalIgnoreCase))
         {
             command.CommandText = """
-                SELECT ISNULL(HAS_PERMS_BY_NAME(NULL, 'SERVER', @permission), 0)
+                SELECT CASE WHEN EXISTS (
+                    SELECT 1 FROM sys.fn_my_permissions(NULL, 'SERVER')
+                    WHERE permission_name = @permission
+                ) THEN 1 ELSE 0 END
                 """;
         }
         else
         {
             command.CommandText = """
-                SELECT ISNULL(HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', @permission), 0)
+                SELECT CASE WHEN EXISTS (
+                    SELECT 1 FROM sys.fn_my_permissions(NULL, 'DATABASE')
+                    WHERE permission_name = @permission
+                ) THEN 1 ELSE 0 END
                 """;
         }
 
