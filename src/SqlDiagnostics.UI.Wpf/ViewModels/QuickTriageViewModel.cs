@@ -124,12 +124,8 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             StatusMessage = $"Triage failed: {ex.Message}";
-            _result = null;
-            Summary = "Triage failed.";
-            Category = "Unknown";
-            Diagnosis = ex.Message;
-            DurationText = "—";
-            _tests.Clear();
+            _progressMessages.Add($"Error: {ex.Message}");
+            ApplyFailureResult(ex.Message);
         }
         finally
         {
@@ -170,6 +166,46 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
 
     private static TriageTestViewModel CreateTestViewModel(TestResult result) =>
         new(result.Name, result.Success, result.Details, result.Duration, result.Issues);
+
+    private void ApplyFailureResult(string message)
+    {
+        var failure = new TriageResult
+        {
+            StartedAtUtc = DateTime.UtcNow,
+            CompletedAtUtc = DateTime.UtcNow,
+            Duration = TimeSpan.Zero,
+            Diagnosis = new Diagnosis
+            {
+                Category = "Error",
+                Summary = "Quick triage failed.",
+                Details = message,
+                Recommendations = { "Verify the connection string.", "Ensure the SQL Server is reachable and permissions are sufficient." }
+            },
+            Network = CreateFailureTest("Network", message),
+            Connection = CreateFailureTest("Connection", message),
+            Query = CreateFailureTest("Query", message),
+            Server = CreateFailureTest("Server", message),
+            Blocking = CreateFailureTest("Blocking", message)
+        };
+
+        _result = failure;
+        Category = failure.Diagnosis.Category;
+        Diagnosis = failure.Diagnosis.Details;
+        Summary = message;
+        DurationText = "—";
+        UpdateTests(failure);
+    }
+
+    private static TestResult CreateFailureTest(string name, string details)
+    {
+        var test = new TestResult(name)
+        {
+            Success = false,
+            Details = details
+        };
+        test.AddIssue(details);
+        return test;
+    }
 
     public string BuildJsonReport()
     {
