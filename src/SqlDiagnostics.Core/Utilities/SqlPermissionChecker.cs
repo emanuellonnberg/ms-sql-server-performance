@@ -74,11 +74,19 @@ public static class SqlPermissionChecker
         CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
-        command.CommandText = """
-            SELECT ISNULL(HAS_PERMS_BY_NAME(@entityName, @class, @permission), 0)
-            """;
-        command.Parameters.AddWithValue("@entityName", requirement.PermissionClass.Equals("SERVER", StringComparison.OrdinalIgnoreCase) ? DBNull.Value : (object)connection.Database);
-        command.Parameters.AddWithValue("@class", requirement.PermissionClass);
+        if (requirement.PermissionClass.Equals("SERVER", StringComparison.OrdinalIgnoreCase))
+        {
+            command.CommandText = """
+                SELECT ISNULL(HAS_PERMS_BY_NAME(NULL, 'SERVER', @permission), 0)
+                """;
+        }
+        else
+        {
+            command.CommandText = """
+                SELECT ISNULL(HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', @permission), 0)
+                """;
+        }
+
         command.Parameters.AddWithValue("@permission", requirement.PermissionName);
 
         var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
