@@ -6,8 +6,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using SqlDiagnostics.Core.Triage;
 using System.Text.Json;
+using SqlDiagnostics.Core.Triage;
+using SqlDiagnostics.UI.Wpf.Logging;
 
 namespace SqlDiagnostics.UI.Wpf.ViewModels;
 
@@ -98,6 +99,8 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
                 throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
             }
 
+            AppLog.Info("QuickTriage", "Starting quick triage run.");
+
             IsRunning = true;
             StatusMessage = "Running quick triage…";
             _progressMessages.Clear();
@@ -120,12 +123,14 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
 
             UpdateFromResult(result);
             StatusMessage = "Quick triage completed.";
+            AppLog.Info("QuickTriage", $"Quick triage completed in {result.Duration.TotalSeconds:N1}s – {result.Diagnosis.Category}: {result.Diagnosis.Summary}");
         }
         catch (Exception ex)
         {
             StatusMessage = $"Triage failed: {ex.Message}";
             _progressMessages.Add($"Error: {ex.Message}");
             ApplyFailureResult(ex.Message);
+            AppLog.Error("QuickTriage", "Quick triage failed.", ex);
         }
         finally
         {
@@ -169,6 +174,8 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
 
     private void ApplyFailureResult(string message)
     {
+        AppLog.Warning("QuickTriage", $"Recording triage failure summary: {message}");
+
         var failure = new TriageResult
         {
             StartedAtUtc = DateTime.UtcNow,

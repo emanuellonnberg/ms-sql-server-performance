@@ -99,4 +99,13 @@ public partial class MainWindow : Window
 
         window.Show();
     }
+
+    private void OnShowLogs(object sender, RoutedEventArgs e)
+    {
+        var window = new LogWindow
+        {
+            Owner = this
+        };
+        window.Show();
+    }
 }

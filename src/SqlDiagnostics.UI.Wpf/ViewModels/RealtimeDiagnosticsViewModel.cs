@@ -8,6 +8,7 @@ using System.Windows;
 using SqlDiagnostics.Core.Models;
 using SqlDiagnostics.Core.Monitoring;
 using SqlDiagnostics.Core.Reports;
+using SqlDiagnostics.UI.Wpf.Logging;
 
 namespace SqlDiagnostics.UI.Wpf.ViewModels;
 
@@ -206,13 +207,16 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         try
         {
             UpdateStatus("Starting monitoring session…");
+            AppLog.Info("RealtimeMonitor", "Starting monitoring session.");
             await _monitor.StartAsync(ConnectionString, DefaultInterval).ConfigureAwait(false);
             IsMonitoring = true;
             UpdateStatus("Monitoring in progress.");
+            AppLog.Info("RealtimeMonitor", "Monitoring started.");
         }
         catch (Exception ex)
         {
             UpdateStatus($"Failed to start monitoring: {ex.Message}");
+            AppLog.Error("RealtimeMonitor", "Failed to start monitoring.", ex);
         }
     }
 
@@ -228,6 +232,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
             UpdateStatus("Stopping…");
             await _monitor.StopAsync().ConfigureAwait(false);
             UpdateStatus("Monitoring stopped.");
+            AppLog.Info("RealtimeMonitor", "Monitoring stopped.");
         }
         finally
         {
@@ -259,6 +264,8 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         {
             dispatcher.Invoke(() => UpdateStatus($"Monitor error: {ex.Message}"));
         }
+
+        AppLog.Error("RealtimeMonitor", "Monitoring error.", ex);
     }
 
     private void ApplyReport(DiagnosticSnapshot snapshot)

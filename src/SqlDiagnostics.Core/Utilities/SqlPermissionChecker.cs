@@ -34,6 +34,7 @@ public static class SqlPermissionChecker
         }
 
         var missing = new List<string>();
+        var statuses = new List<PermissionStatus>();
 
         try
         {
@@ -46,25 +47,36 @@ public static class SqlPermissionChecker
                 if (!await HasPermissionAsync(connection, requirement, cancellationToken).ConfigureAwait(false))
                 {
                     missing.Add(requirement.DisplayName);
+                    statuses.Add(new PermissionStatus(requirement.DisplayName, false, requirement.PermissionClass));
+                }
+                else
+                {
+                    statuses.Add(new PermissionStatus(requirement.DisplayName, true, requirement.PermissionClass));
                 }
             }
 
             foreach (var requirement in DatabaseRequirements)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!await HasPermissionAsync(connection, requirement, cancellationToken).ConfigureAwait(false))
+                var display = $"{requirement.DisplayName} ({connection.Database})";
+                if (!await HasPermissionAsync(connection, requirement with { DisplayName = display }, cancellationToken).ConfigureAwait(false))
                 {
-                    missing.Add($"{requirement.DisplayName} on {connection.Database}");
+                    missing.Add(display);
+                    statuses.Add(new PermissionStatus(display, false, requirement.PermissionClass));
+                }
+                else
+                {
+                    statuses.Add(new PermissionStatus(display, true, requirement.PermissionClass));
                 }
             }
 
             return missing.Count == 0
-                ? PermissionCheckResult.Success()
-                : PermissionCheckResult.Failure(missing);
+                ? PermissionCheckResult.Success(statuses)
+                : PermissionCheckResult.Failure(missing, statuses);
         }
         catch (Exception ex)
         {
-            return PermissionCheckResult.Error(ex.Message, missing);
+            return PermissionCheckResult.Error(ex.Message, statuses, missing);
         }
     }
 
@@ -130,11 +142,12 @@ public static class SqlPermissionChecker
 /// </summary>
 public sealed class PermissionCheckResult
 {
-    private PermissionCheckResult(bool succeeded, string? errorMessage, IReadOnlyList<string> missingPermissions)
+    private PermissionCheckResult(bool succeeded, string? errorMessage, IReadOnlyList<string> missingPermissions, IReadOnlyList<PermissionStatus> statuses)
     {
         Succeeded = succeeded;
         ErrorMessage = errorMessage;
         MissingPermissions = missingPermissions;
+        Statuses = statuses;
     }
 
     public bool Succeeded { get; }
@@ -143,12 +156,16 @@ public sealed class PermissionCheckResult
 
     public IReadOnlyList<string> MissingPermissions { get; }
 
-    public static PermissionCheckResult Success() =>
-        new(true, null, Array.Empty<string>());
+    public IReadOnlyList<PermissionStatus> Statuses { get; }
 
-    public static PermissionCheckResult Failure(IReadOnlyList<string> missing) =>
-        new(false, null, missing);
+    public static PermissionCheckResult Success(IReadOnlyList<PermissionStatus> statuses) =>
+        new(true, null, Array.Empty<string>(), statuses);
 
-    public static PermissionCheckResult Error(string message, IReadOnlyList<string>? missing = null) =>
-        new(false, message, missing ?? Array.Empty<string>());
+    public static PermissionCheckResult Failure(IReadOnlyList<string> missing, IReadOnlyList<PermissionStatus> statuses) =>
+        new(false, null, missing, statuses);
+
+    public static PermissionCheckResult Error(string message, IReadOnlyList<PermissionStatus> statuses, IReadOnlyList<string>? missing = null) =>
+        new(false, message, missing ?? Array.Empty<string>(), statuses);
 }
+
+public readonly record struct PermissionStatus(string Name, bool Granted, string Scope);

@@ -11,6 +11,7 @@ using SqlDiagnostics.Core.Reports;
 using SqlDiagnostics.Core.Utilities;
 using System.Linq;
 using SqlDiagnostics.Core;
+using SqlDiagnostics.UI.Wpf.Logging;
 
 namespace SqlDiagnostics.UI.Wpf.ViewModels;
 
@@ -144,11 +145,15 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
             ApplyPermissionFilters(options);
             await _monitor.StartAsync(connectionString, TimeSpan.FromSeconds(45), options).ConfigureAwait(false);
             IsMonitoring = true;
+            AppLog.Info("FullDiagnostics", "Full diagnostics monitor started.");
         }
         catch (Exception ex)
         {
             UpdateStatus($"Failed to start diagnostics: {ex.Message}");
-            return PermissionCheckResult.Error(ex.Message);
+            return PermissionCheckResult.Error(
+                ex.Message,
+                _permissionResult?.Statuses ?? Array.Empty<PermissionStatus>(),
+                _permissionResult?.MissingPermissions ?? Array.Empty<string>());
         }
 
         return _permissionResult;
@@ -156,12 +161,25 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
 
     private void AnalyzePermissions(PermissionCheckResult result)
     {
-        _hasServerStatePermission = !result.MissingPermissions.Any(p =>
-            p.Contains("VIEW SERVER STATE", StringComparison.OrdinalIgnoreCase));
-        _hasDatabaseStatePermission = !result.MissingPermissions.Any(p =>
-            p.Contains("VIEW DATABASE STATE", StringComparison.OrdinalIgnoreCase));
+        _hasServerStatePermission = result.Statuses
+            .Where(s => s.Scope.Equals("SERVER", StringComparison.OrdinalIgnoreCase))
+            .All(s => s.Granted);
+        _hasDatabaseStatePermission = result.Statuses
+            .Where(s => s.Scope.Equals("DATABASE", StringComparison.OrdinalIgnoreCase))
+            .All(s => s.Granted);
 
         PermissionNotice = BuildPermissionNotice(result);
+
+        var summary = string.Join(", ", result.Statuses.Select(s => $"{s.Name}: {(s.Granted ? "Granted" : "Missing")}"));
+        if (!string.IsNullOrWhiteSpace(summary))
+        {
+            AppLog.Info("FullDiagnostics", $"Permission check results – {summary}");
+        }
+
+        if (result.MissingPermissions.Count > 0)
+        {
+            AppLog.Warning("FullDiagnostics", $"Missing permissions detected: {string.Join(", ", result.MissingPermissions)}");
+        }
     }
 
     private string BuildPermissionNotice(PermissionCheckResult result)
@@ -178,9 +196,24 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
             builder.AppendLine(result.ErrorMessage);
         }
 
+        if (result.Statuses.Count > 0)
+        {
+            builder.AppendLine("Permission check results:");
+            foreach (var status in result.Statuses)
+            {
+                var indicator = status.Granted ? "Granted" : "Missing";
+                builder.AppendLine($" • {status.Name}: {indicator}");
+            }
+        }
+
         if (result.MissingPermissions.Count > 0)
         {
-            builder.AppendLine("Limited diagnostics – missing permissions:");
+            if (builder.Length > 0)
+            {
+                builder.AppendLine();
+            }
+
+            builder.AppendLine("Limited diagnostics – missing permissions will disable some collectors.");
             foreach (var permission in result.MissingPermissions.Distinct())
             {
                 builder.AppendLine($" • {permission}");
@@ -212,10 +245,12 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
             options.IncludeServerConfiguration = false;
             options.CaptureWaitStatistics = false;
             options.DetectBlocking = false;
+            AppLog.Warning("FullDiagnostics", "Server and database diagnostics disabled – VIEW SERVER STATE not granted.");
         }
         else if (!_hasDatabaseStatePermission)
         {
             options.Categories &= ~DiagnosticCategories.Database;
+            AppLog.Warning("FullDiagnostics", "Database diagnostics disabled – VIEW DATABASE STATE not granted.");
         }
     }
 
@@ -243,6 +278,8 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
         {
             dispatcher.Invoke(() => UpdateStatus($"Diagnostics error: {ex.Message}"));
         }
+
+        AppLog.Error("FullDiagnostics", "Diagnostics monitor error.", ex);
     }
 
     private void ApplyReport(DiagnosticReport report, DateTime timestamp)

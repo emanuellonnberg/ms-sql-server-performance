@@ -70,6 +70,10 @@
                             Margin="0,0,12,8"
                             IsEnabled="{Binding CanOpenFullDiagnostics}"
                             Click="OnShowFullDiagnostics"/>
+                    <Button Content="View Logs…"
+                            Width="140"
+                            Margin="0,0,12,8"
+                            Click="OnShowLogs"/>
                 </WrapPanel>
             </Grid>
         </Border>
