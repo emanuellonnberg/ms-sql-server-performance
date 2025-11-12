@@ -135,19 +135,19 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal">
                 <Button Content="Run Again" Width="110"
                         IsEnabled="{Binding CanRun}"
                         Click="OnRunAgainClick"/>
-                <Separator Width="2" Margin="4,0,4,0" Visibility="Collapsed"/>
-                <Button Content="Connection Quality…" Width="160"
+                <Separator Width="1" Margin="6,0,6,0" Visibility="Collapsed"/>
+                <Button Content="Connection Quality…" Width="160" Margin="8,0,0,0"
                         Click="OnOpenConnectionQualityClick"/>
-                <Button Content="Full Diagnostics…" Width="150"
+                <Button Content="Full Diagnostics…" Width="150" Margin="8,0,0,0"
                         Click="OnOpenFullDiagnosticsClick"/>
-                <Button Content="Save JSON…" Width="120"
+                <Button Content="Save JSON…" Width="120" Margin="8,0,0,0"
                         IsEnabled="{Binding HasResult}"
                         Click="OnExportJsonClick"/>
-                <Button Content="Save Markdown…" Width="140"
+                <Button Content="Save Markdown…" Width="140" Margin="8,0,0,0"
                         IsEnabled="{Binding HasResult}"
                         Click="OnExportMarkdownClick"/>
             </StackPanel>
