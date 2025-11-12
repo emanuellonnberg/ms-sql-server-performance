@@ -19,58 +19,58 @@
 
         <Border Padding="12" Background="#f7f9fc" CornerRadius="6" BorderBrush="#d0d7e3" BorderThickness="1">
             <Grid VerticalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0"
+                <TextBlock Grid.Row="0" Grid.Column="0"
                            Text="Connection String:"
                            VerticalAlignment="Center"
                            FontWeight="SemiBold"/>
 
-                <TextBox Grid.Column="1"
+                <TextBox Grid.Row="0" Grid.Column="1"
                          Margin="8,0,0,0"
-                         MinWidth="260"
+                         MinWidth="320"
                          Text="{Binding ConnectionString, UpdateSourceTrigger=PropertyChanged}"
                          ToolTip="SQL Server connection string" />
 
-                <Button Grid.Column="2"
+                <Button Grid.Row="0" Grid.Column="2"
                         Content="Start"
                         Width="80"
                         Margin="12,0,0,0"
                         Command="{Binding StartCommand}"
                         IsEnabled="{Binding IsStartEnabled}" />
 
-                <Button Grid.Column="3"
+                <Button Grid.Row="0" Grid.Column="3"
                         Content="Stop"
                         Width="80"
                         Margin="12,0,0,0"
                         Command="{Binding StopCommand}"
                         IsEnabled="{Binding IsMonitoring}" />
 
-                <Button Grid.Column="4"
-                        Content="Connection Quality…"
-                        Width="180"
-                        Margin="12,0,0,0"
-                        Click="OnShowConnectionQuality" />
-                <Button Grid.Column="5"
-                        Content="Quick Triage…"
-                        Width="140"
-                        Margin="12,0,0,0"
-                        IsEnabled="{Binding CanOpenQuickTriage}"
-                        Click="OnShowQuickTriage"/>
-                <Button Grid.Column="6"
-                          Content="Full Diagnostics…"
-                          Width="160"
-                          Margin="12,0,0,0"
-                          IsEnabled="{Binding CanOpenFullDiagnostics}"
-                          Click="OnShowFullDiagnostics"/>
+                <WrapPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" Margin="0,12,0,0" ItemWidth="190" ItemHeight="Auto" Orientation="Horizontal">
+                    <Button Content="Connection Quality…"
+                            Width="180"
+                            Margin="0,0,12,8"
+                            Click="OnShowConnectionQuality" />
+                    <Button Content="Quick Triage…"
+                            Width="160"
+                            Margin="0,0,12,8"
+                            IsEnabled="{Binding CanOpenQuickTriage}"
+                            Click="OnShowQuickTriage"/>
+                    <Button Content="Full Diagnostics…"
+                            Width="170"
+                            Margin="0,0,12,8"
+                            IsEnabled="{Binding CanOpenFullDiagnostics}"
+                            Click="OnShowFullDiagnostics"/>
+                </WrapPanel>
             </Grid>
         </Border>
 

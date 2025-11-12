@@ -91,13 +91,13 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
-        }
-
         try
         {
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
+            }
+
             IsRunning = true;
             StatusMessage = "Running quick triage…";
             _progressMessages.Clear();
