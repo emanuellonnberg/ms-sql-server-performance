@@ -27,6 +27,10 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
     private string _recommendationsHeader = "No recommendations.";
     private string _reportText = "No diagnostics collected yet.";
     private bool _isMonitoring;
+    private string _permissionNotice = string.Empty;
+    private PermissionCheckResult? _permissionResult;
+    private bool _hasServerStatePermission = true;
+    private bool _hasDatabaseStatePermission = true;
 
     private string? _connectionString;
 
@@ -108,32 +112,35 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
         private set => SetField(ref _isMonitoring, value);
     }
 
+    public string PermissionNotice
+    {
+        get => _permissionNotice;
+        private set
+        {
+            if (SetField(ref _permissionNotice, value))
+            {
+                OnPropertyChanged(nameof(HasPermissionNotice));
+            }
+        }
+    }
+
+    public bool HasPermissionNotice => !string.IsNullOrWhiteSpace(PermissionNotice);
+
     public async Task<PermissionCheckResult> InitializeAsync(string connectionString)
     {
         _connectionString = connectionString;
 
         UpdateStatus("Checking required permissions…");
-        var permissionResult = await SqlPermissionChecker
+        _permissionResult = await SqlPermissionChecker
             .CheckRequiredPermissionsAsync(connectionString)
             .ConfigureAwait(false);
-
-        if (!permissionResult.Succeeded)
-        {
-            if (!string.IsNullOrWhiteSpace(permissionResult.ErrorMessage))
-            {
-                UpdateStatus($"Unable to verify permissions: {permissionResult.ErrorMessage}");
-            }
-            else if (permissionResult.MissingPermissions.Count > 0)
-            {
-                UpdateStatus("Missing permissions.");
-            }
-            return permissionResult;
-        }
+        AnalyzePermissions(_permissionResult);
 
         try
         {
             UpdateStatus("Collecting full diagnostics…");
             var options = BuildOptions();
+            ApplyPermissionFilters(options);
             await _monitor.StartAsync(connectionString, TimeSpan.FromSeconds(45), options).ConfigureAwait(false);
             IsMonitoring = true;
         }
@@ -143,7 +150,43 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
             return PermissionCheckResult.Error(ex.Message);
         }
 
-        return permissionResult;
+        return _permissionResult;
+    }
+
+    private void AnalyzePermissions(PermissionCheckResult result)
+    {
+        _hasServerStatePermission = !result.MissingPermissions.Any(p =>
+            p.Contains("VIEW SERVER STATE", StringComparison.OrdinalIgnoreCase));
+        _hasDatabaseStatePermission = !result.MissingPermissions.Any(p =>
+            p.Contains("VIEW DATABASE STATE", StringComparison.OrdinalIgnoreCase));
+
+        PermissionNotice = BuildPermissionNotice(result);
+    }
+
+    private string BuildPermissionNotice(PermissionCheckResult result)
+    {
+        if (result.Succeeded && string.IsNullOrWhiteSpace(result.ErrorMessage))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+
+        if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+        {
+            builder.AppendLine(result.ErrorMessage);
+        }
+
+        if (result.MissingPermissions.Count > 0)
+        {
+            builder.AppendLine("Limited diagnostics – missing permissions:");
+            foreach (var permission in result.MissingPermissions.Distinct())
+            {
+                builder.AppendLine($" • {permission}");
+            }
+        }
+
+        return builder.ToString().Trim();
     }
 
     private static DiagnosticOptions BuildOptions()
@@ -158,6 +201,21 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
         var options = builder.Build();
         options.GenerateRecommendations = true;
         return options;
+    }
+
+    private void ApplyPermissionFilters(DiagnosticOptions options)
+    {
+        if (!_hasServerStatePermission)
+        {
+            options.Categories &= ~(DiagnosticCategories.Server | DiagnosticCategories.Database);
+            options.IncludeServerConfiguration = false;
+            options.CaptureWaitStatistics = false;
+            options.DetectBlocking = false;
+        }
+        else if (!_hasDatabaseStatePermission)
+        {
+            options.Categories &= ~DiagnosticCategories.Database;
+        }
     }
 
     private void OnSnapshotAvailable(object? sender, DiagnosticSnapshot snapshot)
@@ -194,8 +252,14 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
         HealthScoreDisplay = $"{report.GetHealthScore()}/100";
 
         ConnectionSummary = BuildConnectionSummary(report.Connection);
-        PerformanceSummary = BuildServerSummary(report.Server);
-        DatabaseSummary = BuildDatabaseSummary(report.Databases);
+        PerformanceSummary = _hasServerStatePermission
+            ? BuildServerSummary(report.Server)
+            : "Server metrics unavailable (requires VIEW SERVER STATE).";
+        DatabaseSummary = _hasDatabaseStatePermission && _hasServerStatePermission
+            ? BuildDatabaseSummary(report.Databases)
+            : !_hasDatabaseStatePermission
+                ? "Database metrics unavailable (requires VIEW DATABASE STATE)."
+                : "Database metrics unavailable.";
         UpdateWaits(report.Server);
         UpdateRecommendations(report);
 
@@ -257,7 +321,7 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
     private void UpdateWaits(ServerMetrics? server)
     {
         TopWaits.Clear();
-        if (server?.Waits.Count > 0)
+        if (_hasServerStatePermission && server?.Waits.Count > 0)
         {
             foreach (var wait in server.Waits.Take(10))
             {

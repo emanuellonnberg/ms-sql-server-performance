@@ -26,6 +26,18 @@
             <StackPanel>
                 <TextBlock Text="{Binding StatusMessage}" FontSize="14" FontWeight="SemiBold"/>
                 <TextBlock Text="{Binding LastUpdatedDisplay}" Foreground="Gray" Margin="0,4,0,0"/>
+                <TextBlock Text="{Binding PermissionNotice}" Foreground="#d48806" Margin="0,8,0,0" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasPermissionNotice}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
         </Border>
 

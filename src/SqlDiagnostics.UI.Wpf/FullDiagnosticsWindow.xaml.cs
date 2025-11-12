@@ -27,7 +27,7 @@ public partial class FullDiagnosticsWindow : Window
         }
 
         var result = await vm.InitializeAsync(_connectionString).ConfigureAwait(true);
-        if (!result.Succeeded)
+        if (!result.Succeeded && result.ErrorMessage is not null && result.MissingPermissions.Count == 0)
         {
             var message = BuildFailureMessage(result);
             _ = MessageBox.Show(this, message, "Full Diagnostics Unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
