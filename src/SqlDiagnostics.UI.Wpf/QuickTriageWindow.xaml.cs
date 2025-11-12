@@ -42,17 +42,8 @@ public partial class QuickTriageWindow : Window
         }
     }
 
-    private async Task RunTriageAsync(QuickTriageViewModel vm)
-    {
-        try
-        {
-            await vm.RunAsync(_connectionString).ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            _ = MessageBox.Show(this, $"Quick triage failed: {ex.Message}", "Quick Triage", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
+    private Task RunTriageAsync(QuickTriageViewModel vm) =>
+        vm.RunAsync(_connectionString);
 
     private void OnOpenConnectionQualityClick(object sender, RoutedEventArgs e)
     {

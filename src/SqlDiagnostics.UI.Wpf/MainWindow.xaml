@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:SqlDiagnostics.UI.Wpf.ViewModels"
         mc:Ignorable="d"
         Title="SQL Diagnostics Monitor"
-        Height="520" Width="880">
+        Height="640" Width="920">
     <Window.DataContext>
         <vm:RealtimeDiagnosticsViewModel />
     </Window.DataContext>
