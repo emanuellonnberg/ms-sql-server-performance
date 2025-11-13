@@ -182,7 +182,11 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
             return null;
         }
 
-        return (reader.GetDouble(0), reader.FieldCount > 1 ? reader.GetDouble(1) : 0d);
+        var cpu = reader.IsDBNull(0) ? 0d : Convert.ToDouble(reader.GetValue(0));
+        var sqlCpu = reader.FieldCount > 1 && !reader.IsDBNull(1)
+            ? Convert.ToDouble(reader.GetValue(1))
+            : 0d;
+        return (cpu, sqlCpu);
     }
 
     private static async Task<(double total, double available)?> MapMemoryUsageAsync(SqlDataReader reader, CancellationToken cancellationToken)

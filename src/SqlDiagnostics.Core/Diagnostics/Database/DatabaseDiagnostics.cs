@@ -80,7 +80,7 @@ public sealed class DatabaseDiagnostics : MetricCollectorBase<DatabaseMetrics>
     private static bool IsLogStatsUnavailable(SqlException ex) =>
         ex.Number switch
         {
-            208 or 2812 => true, // Invalid object or stored procedure (older servers without dm_db_log_stats)
+            207 or 208 or 2812 => true, // Missing column/object/stored proc (older servers without dm_db_log_stats)
             _ => false
         };
 
