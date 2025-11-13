@@ -60,7 +60,7 @@ public static class SqlPermissionChecker
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var display = $"{requirement.DisplayName} ({connection.Database})";
-                var (granted, error) = await HasPermissionAsync(connection, requirement with { DisplayName = display }, cancellationToken).ConfigureAwait(false);
+                var (granted, error) = await HasPermissionAsync(connection, requirement.WithDisplayName(display), cancellationToken).ConfigureAwait(false);
                 if (!granted)
                 {
                     missing.Add(display);
@@ -140,10 +140,22 @@ public static class SqlPermissionChecker
         }
     }
 
-    private readonly record struct PermissionRequirement(
-        string PermissionClass,
-        string PermissionName,
-        string DisplayName);
+    private struct PermissionRequirement
+    {
+        public PermissionRequirement(string permissionClass, string permissionName, string displayName)
+        {
+            PermissionClass = permissionClass;
+            PermissionName = permissionName;
+            DisplayName = displayName;
+        }
+
+        public string PermissionClass { get; }
+        public string PermissionName { get; }
+        public string DisplayName { get; }
+
+        public PermissionRequirement WithDisplayName(string displayName) =>
+            new PermissionRequirement(PermissionClass, PermissionName, displayName);
+    }
 }
 
 /// <summary>
@@ -177,4 +189,18 @@ public sealed class PermissionCheckResult
         new(false, message, missing ?? Array.Empty<string>(), statuses);
 }
 
-public readonly record struct PermissionStatus(string Name, bool Granted, string Scope, string? Error);
+public struct PermissionStatus
+{
+    public PermissionStatus(string name, bool granted, string scope, string? error)
+    {
+        Name = name;
+        Granted = granted;
+        Scope = scope;
+        Error = error;
+    }
+
+    public string Name { get; }
+    public bool Granted { get; }
+    public string Scope { get; }
+    public string? Error { get; }
+}
