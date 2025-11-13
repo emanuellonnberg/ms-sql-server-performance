@@ -182,10 +182,19 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
             return null;
         }
 
-        var cpu = reader.IsDBNull(0) ? 0d : Convert.ToDouble(reader.GetValue(0));
-        var sqlCpu = reader.FieldCount > 1 && !reader.IsDBNull(1)
-            ? Convert.ToDouble(reader.GetValue(1))
-            : 0d;
+        double ReadDouble(int ordinal)
+        {
+            if (ordinal >= reader.FieldCount || reader.IsDBNull(ordinal))
+            {
+                return 0d;
+            }
+
+            var value = reader.GetValue(ordinal);
+            return Convert.ToDouble(value);
+        }
+
+        var cpu = ReadDouble(0);
+        var sqlCpu = ReadDouble(1);
         return (cpu, sqlCpu);
     }
 
