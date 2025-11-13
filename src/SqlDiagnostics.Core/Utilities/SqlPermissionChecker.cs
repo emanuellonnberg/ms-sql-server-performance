@@ -44,14 +44,15 @@ public static class SqlPermissionChecker
             foreach (var requirement in ServerRequirements)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!await HasPermissionAsync(connection, requirement, cancellationToken).ConfigureAwait(false))
+                var (granted, error) = await HasPermissionAsync(connection, requirement, cancellationToken).ConfigureAwait(false);
+                if (!granted)
                 {
                     missing.Add(requirement.DisplayName);
-                    statuses.Add(new PermissionStatus(requirement.DisplayName, false, requirement.PermissionClass));
+                    statuses.Add(new PermissionStatus(requirement.DisplayName, false, requirement.PermissionClass, error));
                 }
                 else
                 {
-                    statuses.Add(new PermissionStatus(requirement.DisplayName, true, requirement.PermissionClass));
+                    statuses.Add(new PermissionStatus(requirement.DisplayName, true, requirement.PermissionClass, error));
                 }
             }
 
@@ -59,14 +60,15 @@ public static class SqlPermissionChecker
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var display = $"{requirement.DisplayName} ({connection.Database})";
-                if (!await HasPermissionAsync(connection, requirement with { DisplayName = display }, cancellationToken).ConfigureAwait(false))
+                var (granted, error) = await HasPermissionAsync(connection, requirement with { DisplayName = display }, cancellationToken).ConfigureAwait(false);
+                if (!granted)
                 {
                     missing.Add(display);
-                    statuses.Add(new PermissionStatus(display, false, requirement.PermissionClass));
+                    statuses.Add(new PermissionStatus(display, false, requirement.PermissionClass, error));
                 }
                 else
                 {
-                    statuses.Add(new PermissionStatus(display, true, requirement.PermissionClass));
+                    statuses.Add(new PermissionStatus(display, true, requirement.PermissionClass, error));
                 }
             }
 
@@ -80,7 +82,7 @@ public static class SqlPermissionChecker
         }
     }
 
-    private static async Task<bool> HasPermissionAsync(
+    private static async Task<(bool success, string? error)> HasPermissionAsync(
         SqlConnection connection,
         PermissionRequirement requirement,
         CancellationToken cancellationToken)
@@ -107,28 +109,35 @@ public static class SqlPermissionChecker
 
         command.Parameters.AddWithValue("@permission", requirement.PermissionName);
 
-        var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        if (result is null || result is DBNull)
+        try
         {
-            return false;
-        }
+            var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            if (result is null || result is DBNull)
+            {
+                return (false, null);
+            }
 
-        if (result is int intValue)
+            if (result is int intValue)
+            {
+                return (intValue != 0, null);
+            }
+
+            if (result is long longValue)
+            {
+                return (longValue != 0, null);
+            }
+
+            if (int.TryParse(result.ToString(), out var parsed))
+            {
+                return (parsed != 0, null);
+            }
+
+            return (false, null);
+        }
+        catch (SqlException ex)
         {
-            return intValue != 0;
+            return (false, ex.Message);
         }
-
-        if (result is long longValue)
-        {
-            return longValue != 0;
-        }
-
-        if (int.TryParse(result.ToString(), out var parsed))
-        {
-            return parsed != 0;
-        }
-
-        return false;
     }
 
     private readonly record struct PermissionRequirement(
@@ -168,4 +177,4 @@ public sealed class PermissionCheckResult
         new(false, message, missing ?? Array.Empty<string>(), statuses);
 }
 
-public readonly record struct PermissionStatus(string Name, bool Granted, string Scope);
+public readonly record struct PermissionStatus(string Name, bool Granted, string Scope, string? Error);

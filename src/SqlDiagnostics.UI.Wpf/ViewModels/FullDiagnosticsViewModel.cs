@@ -18,7 +18,7 @@ namespace SqlDiagnostics.UI.Wpf.ViewModels;
 public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDisposable
 {
     private readonly DiagnosticMonitor _monitor = new();
-
+    private static readonly TimeSpan FullDiagnosticsInterval = TimeSpan.FromSeconds(20);
     private string _statusMessage = "Idle.";
     private string _lastUpdatedDisplay = "Last updated: —";
     private string _healthScoreDisplay = "—";
@@ -143,7 +143,7 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
             UpdateStatus("Collecting full diagnostics…");
             var options = BuildOptions();
             ApplyPermissionFilters(options);
-            await _monitor.StartAsync(connectionString, TimeSpan.FromSeconds(45), options).ConfigureAwait(false);
+            await _monitor.StartAsync(connectionString, FullDiagnosticsInterval, options).ConfigureAwait(false);
             IsMonitoring = true;
             AppLog.Info("FullDiagnostics", "Full diagnostics monitor started.");
         }
@@ -170,7 +170,8 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
 
         PermissionNotice = BuildPermissionNotice(result);
 
-        var summary = string.Join(", ", result.Statuses.Select(s => $"{s.Name}: {(s.Granted ? "Granted" : "Missing")}"));
+        var summary = string.Join(", ", result.Statuses.Select(s =>
+            $"{s.Name}: {(s.Granted ? "Granted" : $"Missing{(string.IsNullOrWhiteSpace(s.Error) ? string.Empty : $" ({s.Error})")}")}"));
         if (!string.IsNullOrWhiteSpace(summary))
         {
             AppLog.Info("FullDiagnostics", $"Permission check results – {summary}");
@@ -202,6 +203,10 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
             foreach (var status in result.Statuses)
             {
                 var indicator = status.Granted ? "Granted" : "Missing";
+                if (!string.IsNullOrWhiteSpace(status.Error))
+                {
+                    indicator += $" ({status.Error})";
+                }
                 builder.AppendLine($" • {status.Name}: {indicator}");
             }
         }
@@ -298,6 +303,14 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
             : !_hasDatabaseStatePermission
                 ? "Database metrics unavailable (requires VIEW DATABASE STATE)."
                 : "Database metrics unavailable.";
+        if (_hasServerStatePermission && report.Server is null)
+        {
+            AppLog.Warning("FullDiagnostics", "Server metrics collector returned no data.");
+        }
+        if (_hasDatabaseStatePermission && report.Databases is null)
+        {
+            AppLog.Warning("FullDiagnostics", "Database metrics collector returned no data.");
+        }
         UpdateWaits(report.Server);
         UpdateRecommendations(report);
 
