@@ -35,12 +35,14 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Copy Selected"
                     Width="130"
+                    Margin="0,0,8,0"
                     Click="OnCopySelected"/>
             <Button Content="Copy All"
                     Width="110"
+                    Margin="0,0,8,0"
                     Click="OnCopyAll"/>
             <Button Content="Close"
                     Width="90"
