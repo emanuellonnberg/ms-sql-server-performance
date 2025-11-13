@@ -52,61 +52,59 @@ public static class ConnectionStringParser
         // Strip common protocol prefixes used in connection strings (e.g. tcp:).
         if (value.StartsWith("tcp:", StringComparison.OrdinalIgnoreCase))
         {
-            value = value[4..];
+            value = value.Substring(4);
         }
         else if (value.StartsWith("np:", StringComparison.OrdinalIgnoreCase) ||
                  value.StartsWith("lpc:", StringComparison.OrdinalIgnoreCase))
         {
-            value = value[3..];
+            value = value.Substring(3);
         }
 
-        ReadOnlySpan<char> span = value.AsSpan().Trim();
+        value = value.Trim();
 
-        if (span.IsEmpty)
+        if (value.Length == 0)
         {
             return false;
         }
 
+        string portText = string.Empty;
+
         // IPv6 literal with optional port e.g. [fe80::1%3],1433
-        if (span[0] == '[')
+        if (value.StartsWith("[", StringComparison.Ordinal))
         {
-            var closingBracket = span.IndexOf(']');
+            var closingBracket = value.IndexOf(']');
             if (closingBracket > 0)
             {
-                var hostSpan = span.Slice(1, closingBracket - 1);
-                span = span[(closingBracket + 1)..];
-                host = hostSpan.ToString();
+                host = value.Substring(1, closingBracket - 1);
 
-                if (!span.IsEmpty && span[0] == ',' && span.Length > 1)
+                if (closingBracket + 1 < value.Length && value[closingBracket + 1] == ',' &&
+                    closingBracket + 2 < value.Length)
                 {
-                    if (int.TryParse(span[1..].ToString(), out var parsedPort))
-                    {
-                        port = parsedPort;
-                    }
+                    portText = value.Substring(closingBracket + 2);
                 }
             }
             else
             {
-                host = span.ToString();
-                span = ReadOnlySpan<char>.Empty;
+                host = value;
             }
         }
 
         // Standard host,port syntax.
         if (host is null)
         {
-            var commaIndex = span.IndexOf(',');
+            var commaIndex = value.IndexOf(',');
             if (commaIndex >= 0)
             {
-                if (int.TryParse(span[(commaIndex + 1)..].ToString(), out var parsedPort))
+                host = value.Substring(0, commaIndex);
+                if (commaIndex + 1 < value.Length)
                 {
-                    port = parsedPort;
+                    portText = value.Substring(commaIndex + 1);
                 }
-
-                span = span[..commaIndex];
             }
-
-            host = span.ToString();
+            else
+            {
+                host = value;
+            }
         }
 
         if (string.IsNullOrWhiteSpace(host))
@@ -118,7 +116,7 @@ public static class ConnectionStringParser
         var instanceSeparator = host.IndexOf('\\');
         if (instanceSeparator >= 0)
         {
-            host = host[..instanceSeparator];
+            host = host.Substring(0, instanceSeparator);
         }
 
         host = host.Trim();
@@ -135,6 +133,11 @@ public static class ConnectionStringParser
         else if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
         {
             host = "localhost";
+        }
+
+        if (!string.IsNullOrWhiteSpace(portText) && int.TryParse(portText, out var parsedPort))
+        {
+            port = parsedPort;
         }
 
         return true;

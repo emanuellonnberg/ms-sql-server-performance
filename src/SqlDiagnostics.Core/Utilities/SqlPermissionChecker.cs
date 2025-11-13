@@ -38,7 +38,7 @@ public static class SqlPermissionChecker
 
         try
         {
-            await using var connection = new SqlConnection(connectionString);
+            using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
             foreach (var requirement in ServerRequirements)
@@ -87,7 +87,7 @@ public static class SqlPermissionChecker
         PermissionRequirement requirement,
         CancellationToken cancellationToken)
     {
-        await using var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         if (requirement.PermissionClass.Equals("SERVER", StringComparison.OrdinalIgnoreCase))
         {
             command.CommandText = """
