@@ -295,27 +295,63 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
         HealthScoreDisplay = $"{report.GetHealthScore()}/100";
 
         ConnectionSummary = BuildConnectionSummary(report.Connection);
-        PerformanceSummary = _hasServerStatePermission
-            ? BuildServerSummary(report.Server)
-            : "Server metrics unavailable (requires VIEW SERVER STATE).";
-        DatabaseSummary = _hasDatabaseStatePermission && _hasServerStatePermission
-            ? BuildDatabaseSummary(report.Databases)
-            : !_hasDatabaseStatePermission
-                ? "Database metrics unavailable (requires VIEW DATABASE STATE)."
-                : "Database metrics unavailable.";
-        if (_hasServerStatePermission && report.Server is null)
-        {
-            AppLog.Warning("FullDiagnostics", "Server metrics collector returned no data.");
-        }
-        if (_hasDatabaseStatePermission && report.Databases is null)
-        {
-            AppLog.Warning("FullDiagnostics", "Database metrics collector returned no data.");
-        }
+        PerformanceSummary = BuildServerSummaryWithFallback(report);
+        DatabaseSummary = BuildDatabaseSummaryWithFallback(report);
+
         UpdateWaits(report.Server);
         UpdateRecommendations(report);
 
         ReportText = BuildReportText(report);
     }
+    private string BuildServerSummaryWithFallback(DiagnosticReport report)
+    {
+        if (!_hasServerStatePermission)
+        {
+            return "Server metrics unavailable (requires VIEW SERVER STATE).";
+        }
+
+        if (report.Metadata.TryGetValue("server_skipped", out var skip) && skip is string skipMessage)
+        {
+            AppLog.Warning("FullDiagnostics", $"Server diagnostics skipped: {skipMessage}");
+            return $"Server metrics unavailable: {skipMessage}";
+        }
+
+        if (report.Server is null)
+        {
+            AppLog.Warning("FullDiagnostics", "Server metrics collector returned no data.");
+            return "Server metrics unavailable (collector returned no data).";
+        }
+
+        return BuildServerSummary(report.Server);
+    }
+
+    private string BuildDatabaseSummaryWithFallback(DiagnosticReport report)
+    {
+        if (!_hasServerStatePermission)
+        {
+            return "Database metrics unavailable (requires VIEW SERVER STATE).";
+        }
+
+        if (!_hasDatabaseStatePermission)
+        {
+            return "Database metrics unavailable (requires VIEW DATABASE STATE).";
+        }
+
+        if (report.Metadata.TryGetValue("database_skipped", out var skip) && skip is string skipMessage)
+        {
+            AppLog.Warning("FullDiagnostics", $"Database diagnostics skipped: {skipMessage}");
+            return $"Database metrics unavailable: {skipMessage}";
+        }
+
+        if (report.Databases is null)
+        {
+            AppLog.Warning("FullDiagnostics", "Database metrics collector returned no data.");
+            return "Database metrics unavailable (collector returned no data).";
+        }
+
+        return BuildDatabaseSummary(report.Databases);
+    }
+
 
     private static string BuildConnectionSummary(ConnectionMetrics? metrics)
     {
