@@ -156,11 +156,11 @@ session_counts AS (
     WHERE is_user_process = 1
     GROUP BY COALESCE(database_id, 0)
 ),
-request_counts AS (
+ request_counts AS (
     SELECT
         COALESCE(database_id, 0) AS database_id,
         COUNT_BIG(*) AS request_count,
-        SUM(wait_time_ms) AS total_wait_ms
+        SUM(CAST(wait_time AS bigint)) AS total_wait_ms
     FROM sys.dm_exec_requests
     GROUP BY COALESCE(database_id, 0)
 )
@@ -215,11 +215,11 @@ session_counts AS (
     WHERE is_user_process = 1
     GROUP BY COALESCE(database_id, 0)
 ),
-request_counts AS (
+ request_counts AS (
     SELECT
         COALESCE(database_id, 0) AS database_id,
         COUNT_BIG(*) AS request_count,
-        SUM(wait_time_ms) AS total_wait_ms
+        SUM(CAST(wait_time AS bigint)) AS total_wait_ms
     FROM sys.dm_exec_requests
     GROUP BY COALESCE(database_id, 0)
 )

@@ -76,33 +76,28 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
     }
 
     private async Task<ServerResourceUsage> GatherResourceUsageAsync(SqlConnection connection, CancellationToken cancellationToken)
-    {
-        var cpuTask = ExecuteReaderAsync(connection, CpuQuery, MapCpuUsageAsync, cancellationToken);
-        var memoryTask = ExecuteReaderAsync(connection, MemoryQuery, MapMemoryUsageAsync, cancellationToken);
-        var pleTask = ExecuteScalarAsync<double?>(connection, PleQuery, cancellationToken);
-        var ioTask = ExecuteScalarAsync<long?>(connection, IoQuery, cancellationToken);
-
-        await Task.WhenAll(cpuTask, memoryTask, pleTask, ioTask).ConfigureAwait(false);
-
-        var usage = new ServerResourceUsage();
-
-        if (cpuTask.Result != null)
         {
-            usage.CpuUtilizationPercent = cpuTask.Result.Value.cpu;
-            usage.SqlProcessUtilizationPercent = cpuTask.Result.Value.sqlCpu;
+            var usage = new ServerResourceUsage();
+
+            var cpuResult = await ExecuteReaderAsync(connection, CpuQuery, MapCpuUsageAsync, cancellationToken).ConfigureAwait(false);
+            if (cpuResult != null)
+            {
+                usage.CpuUtilizationPercent = cpuResult.Value.cpu;
+                usage.SqlProcessUtilizationPercent = cpuResult.Value.sqlCpu;
+            }
+
+            var memoryResult = await ExecuteReaderAsync(connection, MemoryQuery, MapMemoryUsageAsync, cancellationToken).ConfigureAwait(false);
+            if (memoryResult != null)
+            {
+                usage.TotalMemoryMb = memoryResult.Value.total;
+                usage.AvailableMemoryMb = memoryResult.Value.available;
+            }
+
+            usage.PageLifeExpectancySeconds = await ExecuteScalarAsync<double?>(connection, PleQuery, cancellationToken).ConfigureAwait(false);
+            usage.IoStallMs = await ExecuteScalarAsync<long?>(connection, IoQuery, cancellationToken).ConfigureAwait(false);
+
+            return usage;
         }
-
-        if (memoryTask.Result != null)
-        {
-            usage.TotalMemoryMb = memoryTask.Result.Value.total;
-            usage.AvailableMemoryMb = memoryTask.Result.Value.available;
-        }
-
-        usage.PageLifeExpectancySeconds = pleTask.Result;
-        usage.IoStallMs = ioTask.Result;
-
-        return usage;
-    }
 
     private async Task<IReadOnlyList<WaitStatistic>> GatherTopWaitStatsAsync(SqlConnection connection, CancellationToken cancellationToken)
     {
