@@ -205,8 +205,8 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
             return null;
         }
 
-        var total = Convert.ToDouble(reader["total_memory_mb"]);
-        var available = Convert.ToDouble(reader["available_memory_mb"]);
+        var total = ReadDouble(reader, 0);
+        var available = ReadDouble(reader, 1);
         return (total, available);
     }
 
@@ -241,6 +241,17 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
             using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken).ConfigureAwait(false);
             return await map(reader, cancellationToken).ConfigureAwait(false);
         }, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    private static double ReadDouble(SqlDataReader reader, int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= reader.FieldCount || reader.IsDBNull(ordinal))
+        {
+            return 0d;
+        }
+
+        var value = reader.GetValue(ordinal);
+        return Convert.ToDouble(value);
     }
 
     private const string CpuQuery = """
