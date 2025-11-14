@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using SqlDiagnostics.Core.Models;
 using SqlDiagnostics.Core.Monitoring;
 using SqlDiagnostics.Core.Reports;
@@ -16,6 +17,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
     private static readonly TimeSpan DefaultInterval = TimeSpan.FromSeconds(5);
 
     private readonly DiagnosticMonitor _monitor = new();
+    private readonly Dispatcher _dispatcher;
 
     private string _connectionString = Environment.GetEnvironmentVariable("SQLDIAG_CONNECTION_STRING") ?? string.Empty;
     private bool _isMonitoring;
@@ -31,21 +33,24 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
 
     public RealtimeDiagnosticsViewModel()
     {
+        _dispatcher = Application.Current?.Dispatcher
+            ?? throw new InvalidOperationException("An application dispatcher is required for UI updates.");
+
         Recommendations.CollectionChanged += RecommendationsOnCollectionChanged;
         _monitor.SnapshotAvailable += OnSnapshotAvailable;
         _monitor.MonitorError += OnMonitorError;
 
-        StartCommand = new RelayCommand(() => _ = StartMonitoringAsync(), () => IsStartEnabled);
-        StopCommand = new RelayCommand(() => _ = StopMonitoringAsync(), () => IsMonitoring);
+        StartCommand = new AsyncRelayCommand(StartMonitoringAsync, () => IsStartEnabled, _dispatcher);
+        StopCommand = new AsyncRelayCommand(StopMonitoringAsync, () => IsMonitoring, _dispatcher);
 
         UpdateStatus("Ready. Provide a connection string to start monitoring.");
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public RelayCommand StartCommand { get; }
+    public AsyncRelayCommand StartCommand { get; }
 
-    public RelayCommand StopCommand { get; }
+    public AsyncRelayCommand StopCommand { get; }
     public DiagnosticMonitor Monitor => _monitor;
 
     public ObservableCollection<RecommendationItemViewModel> Recommendations { get; } = new();
@@ -146,7 +151,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         try
         {
             UpdateStatus("Starting monitoring session…");
-            await _monitor.StartAsync(ConnectionString, DefaultInterval).ConfigureAwait(false);
+            await _monitor.StartAsync(ConnectionString, DefaultInterval);
             IsMonitoring = true;
             UpdateStatus("Monitoring in progress.");
         }
@@ -166,7 +171,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         try
         {
             UpdateStatus("Stopping…");
-            await _monitor.StopAsync().ConfigureAwait(false);
+            await _monitor.StopAsync();
             UpdateStatus("Monitoring stopped.");
         }
         finally
@@ -177,27 +182,25 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
 
     private void OnSnapshotAvailable(object? sender, DiagnosticSnapshot snapshot)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
+        if (_dispatcher.CheckAccess())
         {
             ApplyReport(snapshot);
         }
         else
         {
-            dispatcher.Invoke(() => ApplyReport(snapshot));
+            _ = _dispatcher.InvokeAsync(() => ApplyReport(snapshot));
         }
     }
 
     private void OnMonitorError(object? sender, Exception ex)
     {
-        var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
+        if (_dispatcher.CheckAccess())
         {
             UpdateStatus($"Monitor error: {ex.Message}");
         }
         else
         {
-            dispatcher.Invoke(() => UpdateStatus($"Monitor error: {ex.Message}"));
+            _ = _dispatcher.InvokeAsync(() => UpdateStatus($"Monitor error: {ex.Message}"));
         }
     }
 
@@ -306,7 +309,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         Recommendations.CollectionChanged -= RecommendationsOnCollectionChanged;
         _monitor.SnapshotAvailable -= OnSnapshotAvailable;
         _monitor.MonitorError -= OnMonitorError;
-        await _monitor.DisposeAsync().ConfigureAwait(false);
+        await _monitor.DisposeAsync();
     }
 }
 
