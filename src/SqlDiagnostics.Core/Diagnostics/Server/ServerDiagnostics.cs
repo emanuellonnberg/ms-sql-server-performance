@@ -76,28 +76,28 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
     }
 
     private async Task<ServerResourceUsage> GatherResourceUsageAsync(SqlConnection connection, CancellationToken cancellationToken)
+    {
+        var usage = new ServerResourceUsage();
+
+        var cpuResult = await ExecuteReaderAsync(connection, CpuQuery, MapCpuUsageAsync, cancellationToken).ConfigureAwait(false);
+        if (cpuResult != null)
         {
-            var usage = new ServerResourceUsage();
-
-            var cpuResult = await ExecuteReaderAsync(connection, CpuQuery, MapCpuUsageAsync, cancellationToken).ConfigureAwait(false);
-            if (cpuResult != null)
-            {
-                usage.CpuUtilizationPercent = cpuResult.Value.cpu;
-                usage.SqlProcessUtilizationPercent = cpuResult.Value.sqlCpu;
-            }
-
-            var memoryResult = await ExecuteReaderAsync(connection, MemoryQuery, MapMemoryUsageAsync, cancellationToken).ConfigureAwait(false);
-            if (memoryResult != null)
-            {
-                usage.TotalMemoryMb = memoryResult.Value.total;
-                usage.AvailableMemoryMb = memoryResult.Value.available;
-            }
-
-            usage.PageLifeExpectancySeconds = await ExecuteScalarAsync<double?>(connection, PleQuery, cancellationToken).ConfigureAwait(false);
-            usage.IoStallMs = await ExecuteScalarAsync<long?>(connection, IoQuery, cancellationToken).ConfigureAwait(false);
-
-            return usage;
+            usage.CpuUtilizationPercent = cpuResult.Value.cpu;
+            usage.SqlProcessUtilizationPercent = cpuResult.Value.sqlCpu;
         }
+
+        var memoryResult = await ExecuteReaderAsync(connection, MemoryQuery, MapMemoryUsageAsync, cancellationToken).ConfigureAwait(false);
+        if (memoryResult != null)
+        {
+            usage.TotalMemoryMb = memoryResult.Value.total;
+            usage.AvailableMemoryMb = memoryResult.Value.available;
+        }
+
+        usage.PageLifeExpectancySeconds = await ExecuteScalarAsync<double?>(connection, PleQuery, cancellationToken).ConfigureAwait(false);
+        usage.IoStallMs = await ExecuteScalarAsync<long?>(connection, IoQuery, cancellationToken).ConfigureAwait(false);
+
+        return usage;
+    }
 
     private async Task<IReadOnlyList<WaitStatistic>> GatherTopWaitStatsAsync(SqlConnection connection, CancellationToken cancellationToken)
     {
@@ -223,7 +223,10 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
                 return default;
             }
 
-            return (T)Convert.ChangeType(result, typeof(T))!;
+            var targetType = typeof(T);
+            var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            var converted = Convert.ChangeType(result, underlyingType);
+            return (T)converted!;
         }, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
