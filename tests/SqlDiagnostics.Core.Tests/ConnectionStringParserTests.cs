@@ -21,4 +21,30 @@ public class ConnectionStringParserTests
         var value = ConnectionStringParser.TryGetDataSource(string.Empty);
         Assert.Null(value);
     }
+
+    [Theory]
+    [InlineData("localhost\\SQLEXPRESS", "localhost", null)]
+    [InlineData("tcp:demo.database.windows.net,1433", "demo.database.windows.net", 1433)]
+    [InlineData("192.168.1.50,1500", "192.168.1.50", 1500)]
+    [InlineData(".\\INSTANCE", "localhost", null)]
+    [InlineData("(local)", "localhost", null)]
+    [InlineData("[fe80::1%4],1501", "fe80::1%4", 1501)]
+    public void TryGetNetworkEndpoint_NormalisesHostAndPort(string dataSource, string expectedHost, int? expectedPort)
+    {
+        var success = ConnectionStringParser.TryGetNetworkEndpoint(dataSource, out var host, out var port);
+
+        Assert.True(success);
+        Assert.Equal(expectedHost, host);
+        Assert.Equal(expectedPort, port);
+    }
+
+    [Fact]
+    public void TryGetNetworkEndpoint_WithEmpty_ReturnsFalse()
+    {
+        var success = ConnectionStringParser.TryGetNetworkEndpoint(null, out var host, out var port);
+
+        Assert.False(success);
+        Assert.Null(host);
+        Assert.Null(port);
+    }
 }

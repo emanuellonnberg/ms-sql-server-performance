@@ -80,7 +80,7 @@ public sealed class DatabaseDiagnostics : MetricCollectorBase<DatabaseMetrics>
     private static bool IsLogStatsUnavailable(SqlException ex) =>
         ex.Number switch
         {
-            208 or 2812 => true, // Invalid object or stored procedure (older servers without dm_db_log_stats)
+            207 or 208 or 2812 => true, // Missing column/object/stored proc (older servers without dm_db_log_stats)
             _ => false
         };
 
@@ -108,36 +108,71 @@ public sealed class DatabaseDiagnostics : MetricCollectorBase<DatabaseMetrics>
     {
         var snapshot = new DatabaseSnapshot
         {
-            DatabaseId = reader.GetInt32(0),
-            Name = reader.GetString(1),
-            State = reader.IsDBNull(2) ? null : reader.GetString(2),
-            RecoveryModel = reader.IsDBNull(3) ? null : reader.GetString(3),
-            CompatibilityLevel = reader.IsDBNull(4) ? null : reader.GetInt32(4),
-            Containment = reader.IsDBNull(5) ? null : reader.GetString(5),
-            LogReuseWait = reader.IsDBNull(6) ? null : reader.GetString(6),
-            IsReadOnly = reader.IsDBNull(7) ? null : reader.GetBoolean(7),
-            IsAutoClose = reader.IsDBNull(8) ? null : reader.GetBoolean(8),
-            IsAutoShrink = reader.IsDBNull(9) ? null : reader.GetBoolean(9),
-            DataFileSizeMb = reader.IsDBNull(10) ? null : reader.GetDouble(10),
-            LogFileSizeMb = reader.IsDBNull(11) ? null : reader.GetDouble(11),
-            ActiveSessionCount = reader.IsDBNull(12) ? null : reader.GetInt64(12),
-            RunningRequestCount = reader.IsDBNull(13) ? null : reader.GetInt64(13),
-            AggregateWaitTimeMs = reader.IsDBNull(14) ? null : Convert.ToDouble(reader[14]),
-            TotalLogSizeMb = reader.IsDBNull(15) ? null : reader.GetDouble(15),
-            ActiveLogSizeMb = reader.IsDBNull(16) ? null : reader.GetDouble(16),
-            LogUsedPercent = reader.IsDBNull(17) ? null : reader.GetDouble(17),
-            LogSinceLastBackupMb = reader.IsDBNull(18) ? null : reader.GetDouble(18),
-            LastLogBackupTime = reader.IsDBNull(19) ? null : reader.GetDateTime(19),
-            LastCheckpointTime = reader.IsDBNull(20) ? null : reader.GetDateTime(20),
-            LogTruncationHoldupReason = reader.IsDBNull(21) ? null : reader.GetString(21)
+            DatabaseId = SafeGetInt(reader, 0),
+            Name = SafeGetString(reader, 1),
+            State = SafeGetString(reader, 2),
+            RecoveryModel = SafeGetString(reader, 3),
+            CompatibilityLevel = SafeGetIntNullable(reader, 4),
+            Containment = SafeGetString(reader, 5),
+            LogReuseWait = SafeGetString(reader, 6),
+            IsReadOnly = SafeGetBoolNullable(reader, 7),
+            IsAutoClose = SafeGetBoolNullable(reader, 8),
+            IsAutoShrink = SafeGetBoolNullable(reader, 9),
+            DataFileSizeMb = SafeGetDoubleNullable(reader, 10),
+            LogFileSizeMb = SafeGetDoubleNullable(reader, 11),
+            ActiveSessionCount = SafeGetLongNullable(reader, 12),
+            RunningRequestCount = SafeGetLongNullable(reader, 13),
+            AggregateWaitTimeMs = SafeGetDoubleNullable(reader, 14),
+            TotalLogSizeMb = SafeGetDoubleNullable(reader, 15),
+            ActiveLogSizeMb = SafeGetDoubleNullable(reader, 16),
+            LogUsedPercent = SafeGetDoubleNullable(reader, 17),
+            LogSinceLastBackupMb = SafeGetDoubleNullable(reader, 18),
+            LastLogBackupTime = SafeGetDateTimeNullable(reader, 19),
+            LastCheckpointTime = SafeGetDateTimeNullable(reader, 20),
+            LogTruncationHoldupReason = SafeGetString(reader, 21)
         };
 
-        snapshot.AdditionalProperties["auto_create_stats"] = reader.IsDBNull(22) ? null : reader.GetBoolean(22);
-        snapshot.AdditionalProperties["auto_update_stats"] = reader.IsDBNull(23) ? null : reader.GetBoolean(23);
-        snapshot.AdditionalProperties["target_recovery_time_s"] = reader.IsDBNull(24) ? null : reader.GetInt32(24);
+        snapshot.AdditionalProperties["auto_create_stats"] = SafeGetBoolNullable(reader, 22);
+        snapshot.AdditionalProperties["auto_update_stats"] = SafeGetBoolNullable(reader, 23);
+        snapshot.AdditionalProperties["target_recovery_time_s"] = SafeGetIntNullable(reader, 24);
 
         return snapshot;
     }
+
+    private static string? SafeGetString(SqlDataReader reader, int ordinal) =>
+        ordinal >= 0 && ordinal < reader.FieldCount && !reader.IsDBNull(ordinal)
+            ? reader.GetString(ordinal)
+            : null;
+
+    private static int SafeGetInt(SqlDataReader reader, int ordinal) =>
+        ordinal >= 0 && ordinal < reader.FieldCount && !reader.IsDBNull(ordinal)
+            ? Convert.ToInt32(reader.GetValue(ordinal))
+            : 0;
+
+    private static int? SafeGetIntNullable(SqlDataReader reader, int ordinal) =>
+        ordinal >= 0 && ordinal < reader.FieldCount && !reader.IsDBNull(ordinal)
+            ? Convert.ToInt32(reader.GetValue(ordinal))
+            : (int?)null;
+
+    private static long? SafeGetLongNullable(SqlDataReader reader, int ordinal) =>
+        ordinal >= 0 && ordinal < reader.FieldCount && !reader.IsDBNull(ordinal)
+            ? Convert.ToInt64(reader.GetValue(ordinal))
+            : (long?)null;
+
+    private static double? SafeGetDoubleNullable(SqlDataReader reader, int ordinal) =>
+        ordinal >= 0 && ordinal < reader.FieldCount && !reader.IsDBNull(ordinal)
+            ? Convert.ToDouble(reader.GetValue(ordinal))
+            : (double?)null;
+
+    private static bool? SafeGetBoolNullable(SqlDataReader reader, int ordinal) =>
+        ordinal >= 0 && ordinal < reader.FieldCount && !reader.IsDBNull(ordinal)
+            ? Convert.ToBoolean(reader.GetValue(ordinal))
+            : (bool?)null;
+
+    private static DateTime? SafeGetDateTimeNullable(SqlDataReader reader, int ordinal) =>
+        ordinal >= 0 && ordinal < reader.FieldCount && !reader.IsDBNull(ordinal)
+            ? Convert.ToDateTime(reader.GetValue(ordinal))
+            : (DateTime?)null;
 
     private const string DatabaseSummaryQueryWithLogStats = """
 WITH file_sizes AS (
@@ -156,11 +191,11 @@ session_counts AS (
     WHERE is_user_process = 1
     GROUP BY COALESCE(database_id, 0)
 ),
-request_counts AS (
+ request_counts AS (
     SELECT
         COALESCE(database_id, 0) AS database_id,
         COUNT_BIG(*) AS request_count,
-        SUM(wait_time_ms) AS total_wait_ms
+        SUM(CAST(wait_time AS bigint)) AS total_wait_ms
     FROM sys.dm_exec_requests
     GROUP BY COALESCE(database_id, 0)
 )
@@ -215,11 +250,11 @@ session_counts AS (
     WHERE is_user_process = 1
     GROUP BY COALESCE(database_id, 0)
 ),
-request_counts AS (
+ request_counts AS (
     SELECT
         COALESCE(database_id, 0) AS database_id,
         COUNT_BIG(*) AS request_count,
-        SUM(wait_time_ms) AS total_wait_ms
+        SUM(CAST(wait_time AS bigint)) AS total_wait_ms
     FROM sys.dm_exec_requests
     GROUP BY COALESCE(database_id, 0)
 )

@@ -1,0 +1,194 @@
+<Window x:Class="SqlDiagnostics.UI.Wpf.FullDiagnosticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:SqlDiagnostics.UI.Wpf.ViewModels"
+        Title="Full Diagnostics"
+        Height="680"
+        Width="980"
+        WindowStartupLocation="CenterOwner"
+        mc:Ignorable="d"
+        Loaded="OnLoaded">
+    <Window.DataContext>
+        <vm:FullDiagnosticsViewModel />
+    </Window.DataContext>
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Background="#f5f7fb" BorderBrush="#d8deeb" BorderThickness="1" CornerRadius="6" Padding="12">
+            <StackPanel>
+                <TextBlock Text="{Binding StatusMessage}" FontSize="14" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding LastUpdatedDisplay}" Foreground="Gray" Margin="0,4,0,0"/>
+                <TextBlock Text="{Binding PermissionNotice}" Foreground="#d48806" Margin="0,8,0,0" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasPermissionNotice}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="White" CornerRadius="6" BorderBrush="#d8deeb" BorderThickness="1" Padding="16" Margin="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="Summary" FontSize="18" FontWeight="SemiBold"/>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Target" FontWeight="Bold"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding TargetDisplay}"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Health Score" FontWeight="Bold"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding HealthScoreDisplay}" FontSize="16" FontWeight="SemiBold"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Connection" FontWeight="Bold" Margin="0,8,0,0"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ConnectionSummary}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Server" FontWeight="Bold" Margin="0,8,0,0"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding PerformanceSummary}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Databases" FontWeight="Bold" Margin="0,8,0,0"/>
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DatabaseSummary}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Background="White" CornerRadius="6" BorderBrush="#d8deeb" BorderThickness="1" Padding="16" Margin="8,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="Top Waits" FontSize="18" FontWeight="SemiBold"/>
+                    <DataGrid ItemsSource="{Binding TopWaits}"
+                              Margin="0,12,0,0"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column"
+                              SelectionMode="Single"
+                              RowHeaderWidth="0"
+                              MinRowHeight="26">
+                        <DataGrid.Style>
+                            <Style TargetType="DataGrid">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasTopWaits}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.Style>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Binding="{Binding WaitType}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Wait Type"
+                                               ToolTip="Name of the wait category reported by sys.dm_os_wait_stats."/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding WaitTimeMs, StringFormat={}{0:N0}}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Wait (ms)"
+                                               ToolTip="Cumulative wait duration (milliseconds) spent in this wait type since the server statistics were last reset."/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding SignalWaitTimeMs, StringFormat={}{0:N0}}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Signal Wait (ms)"
+                                               ToolTip="Portion of the wait spent on runnable tasks waiting for CPU time (signal wait) since the statistics were last reset."/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding WaitingTasks, StringFormat={}{0:N0}}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Tasks"
+                                               ToolTip="Number of tasks encountering this wait type."/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Text="No wait statistics captured yet." Foreground="Gray" Margin="0,12,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasTopWaits}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <Separator Margin="0,16,0,16"/>
+
+                    <TextBlock Text="{Binding RecommendationsHeader}" FontSize="18" FontWeight="SemiBold"/>
+                    <ItemsControl ItemsSource="{Binding Recommendations}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#f3f6fb" CornerRadius="4" Padding="8" Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                        <ItemsControl.Style>
+                            <Style TargetType="ItemsControl">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasRecommendations}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ItemsControl.Style>
+                    </ItemsControl>
+                    <TextBlock Text="No recommendations yet." Foreground="Gray" Margin="0,12,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasRecommendations}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2" Background="White" CornerRadius="6" BorderBrush="#d8deeb" BorderThickness="1" Padding="16" Margin="0,16,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock Text="{Binding ReportText}" FontFamily="Consolas" TextWrapping="Wrap"/>
+            </ScrollViewer>
+        </Border>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Close" Width="100" IsDefault="True" Click="OnCloseClick"/>
+        </StackPanel>
+    </Grid>
+</Window>

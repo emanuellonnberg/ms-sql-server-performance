@@ -77,29 +77,24 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
 
     private async Task<ServerResourceUsage> GatherResourceUsageAsync(SqlConnection connection, CancellationToken cancellationToken)
     {
-        var cpuTask = ExecuteReaderAsync(connection, CpuQuery, MapCpuUsageAsync, cancellationToken);
-        var memoryTask = ExecuteReaderAsync(connection, MemoryQuery, MapMemoryUsageAsync, cancellationToken);
-        var pleTask = ExecuteScalarAsync<double?>(connection, PleQuery, cancellationToken);
-        var ioTask = ExecuteScalarAsync<long?>(connection, IoQuery, cancellationToken);
-
-        await Task.WhenAll(cpuTask, memoryTask, pleTask, ioTask).ConfigureAwait(false);
-
         var usage = new ServerResourceUsage();
 
-        if (cpuTask.Result != null)
+        var cpuResult = await ExecuteReaderAsync(connection, CpuQuery, MapCpuUsageAsync, cancellationToken).ConfigureAwait(false);
+        if (cpuResult != null)
         {
-            usage.CpuUtilizationPercent = cpuTask.Result.Value.cpu;
-            usage.SqlProcessUtilizationPercent = cpuTask.Result.Value.sqlCpu;
+            usage.CpuUtilizationPercent = cpuResult.Value.cpu;
+            usage.SqlProcessUtilizationPercent = cpuResult.Value.sqlCpu;
         }
 
-        if (memoryTask.Result != null)
+        var memoryResult = await ExecuteReaderAsync(connection, MemoryQuery, MapMemoryUsageAsync, cancellationToken).ConfigureAwait(false);
+        if (memoryResult != null)
         {
-            usage.TotalMemoryMb = memoryTask.Result.Value.total;
-            usage.AvailableMemoryMb = memoryTask.Result.Value.available;
+            usage.TotalMemoryMb = memoryResult.Value.total;
+            usage.AvailableMemoryMb = memoryResult.Value.available;
         }
 
-        usage.PageLifeExpectancySeconds = pleTask.Result;
-        usage.IoStallMs = ioTask.Result;
+        usage.PageLifeExpectancySeconds = await ExecuteScalarAsync<double?>(connection, PleQuery, cancellationToken).ConfigureAwait(false);
+        usage.IoStallMs = await ExecuteScalarAsync<long?>(connection, IoQuery, cancellationToken).ConfigureAwait(false);
 
         return usage;
     }
@@ -187,7 +182,20 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
             return null;
         }
 
-        return (reader.GetDouble(0), reader.FieldCount > 1 ? reader.GetDouble(1) : 0d);
+        double ReadDouble(int ordinal)
+        {
+            if (ordinal >= reader.FieldCount || reader.IsDBNull(ordinal))
+            {
+                return 0d;
+            }
+
+            var value = reader.GetValue(ordinal);
+            return Convert.ToDouble(value);
+        }
+
+        var cpu = ReadDouble(0);
+        var sqlCpu = ReadDouble(1);
+        return (cpu, sqlCpu);
     }
 
     private static async Task<(double total, double available)?> MapMemoryUsageAsync(SqlDataReader reader, CancellationToken cancellationToken)
@@ -197,8 +205,8 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
             return null;
         }
 
-        var total = Convert.ToDouble(reader["total_memory_mb"]);
-        var available = Convert.ToDouble(reader["available_memory_mb"]);
+        var total = ReadDouble(reader, 0);
+        var available = ReadDouble(reader, 1);
         return (total, available);
     }
 
@@ -215,7 +223,10 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
                 return default;
             }
 
-            return (T)Convert.ChangeType(result, typeof(T))!;
+            var targetType = typeof(T);
+            var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+            var converted = Convert.ChangeType(result, underlyingType);
+            return (T)converted!;
         }, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
@@ -233,6 +244,17 @@ public sealed class ServerDiagnostics : MetricCollectorBase<ServerMetrics>
             using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleResult, cancellationToken).ConfigureAwait(false);
             return await map(reader, cancellationToken).ConfigureAwait(false);
         }, cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
+    private static double ReadDouble(SqlDataReader reader, int ordinal)
+    {
+        if (ordinal < 0 || ordinal >= reader.FieldCount || reader.IsDBNull(ordinal))
+        {
+            return 0d;
+        }
+
+        var value = reader.GetValue(ordinal);
+        return Convert.ToDouble(value);
     }
 
     private const string CpuQuery = """

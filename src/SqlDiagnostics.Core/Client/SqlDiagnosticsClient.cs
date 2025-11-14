@@ -192,31 +192,36 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
 
         if (effectiveOptions.Categories.HasFlag(DiagnosticCategories.Network))
         {
-            if (!string.IsNullOrWhiteSpace(report.TargetDataSource))
+            if (ConnectionStringParser.TryGetNetworkEndpoint(report.TargetDataSource, out var host, out var port))
             {
-                var host = report.TargetDataSource!;
+                report.Metadata["network_host"] = host;
+                if (port.HasValue)
+                {
+                    report.Metadata["network_port"] = port.Value;
+                }
+
                 report.Network = await _networkDiagnostics
-                    .MeasureLatencyAsync(host, cancellationToken: cancellationToken)
+                    .MeasureLatencyAsync(host!, cancellationToken: cancellationToken)
                     .ConfigureAwait(false);
 
                 if (effectiveOptions.IncludeDnsResolution)
                 {
                     report.Dns = await _networkDiagnostics
-                        .TestDnsResolutionAsync(host, cancellationToken)
+                        .TestDnsResolutionAsync(host!, cancellationToken)
                         .ConfigureAwait(false);
                 }
 
                 if (effectiveOptions.IncludePortProbe)
                 {
                     report.PortConnectivity = await _networkDiagnostics
-                        .TestPortConnectivityAsync(host, cancellationToken: cancellationToken)
+                        .TestPortConnectivityAsync(host!, port ?? 1433, cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
                 }
             }
             else
             {
                 _logger?.LogWarning("Skipping network diagnostics; unable to determine target host.");
-                report.Metadata["network_skipped"] = "Missing data source";
+                report.Metadata["network_skipped"] = "Missing or unsupported data source";
             }
         }
 
