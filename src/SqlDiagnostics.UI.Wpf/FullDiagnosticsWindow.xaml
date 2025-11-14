@@ -84,22 +84,53 @@
             <Border Grid.Column="1" Background="White" CornerRadius="6" BorderBrush="#d8deeb" BorderThickness="1" Padding="16" Margin="8,0,0,0">
                 <StackPanel>
                     <TextBlock Text="Top Waits" FontSize="18" FontWeight="SemiBold"/>
-                    <ItemsControl ItemsSource="{Binding TopWaits}" Margin="0,12,0,0">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,6"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                        <ItemsControl.Style>
-                            <Style TargetType="ItemsControl">
+                    <DataGrid ItemsSource="{Binding TopWaits}"
+                              Margin="0,12,0,0"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              HeadersVisibility="Column"
+                              SelectionMode="Single"
+                              RowHeaderWidth="0"
+                              MinRowHeight="26">
+                        <DataGrid.Style>
+                            <Style TargetType="DataGrid">
+                                <Setter Property="Visibility" Value="Visible"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasTopWaits}" Value="False">
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </ItemsControl.Style>
-                    </ItemsControl>
+                        </DataGrid.Style>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Binding="{Binding WaitType}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Wait Type"
+                                               ToolTip="Name of the wait category reported by sys.dm_os_wait_stats."/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding WaitTimeMs, StringFormat={}{0:N0}}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Wait (ms)"
+                                               ToolTip="Cumulative wait duration (milliseconds) spent in this wait type since the server statistics were last reset."/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding SignalWaitTimeMs, StringFormat={}{0:N0}}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Signal Wait (ms)"
+                                               ToolTip="Portion of the wait spent on runnable tasks waiting for CPU time (signal wait) since the statistics were last reset."/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Binding="{Binding WaitingTasks, StringFormat={}{0:N0}}">
+                                <DataGridTextColumn.Header>
+                                    <TextBlock Text="Tasks"
+                                               ToolTip="Number of tasks encountering this wait type."/>
+                                </DataGridTextColumn.Header>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
                     <TextBlock Text="No wait statistics captured yet." Foreground="Gray" Margin="0,12,0,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">

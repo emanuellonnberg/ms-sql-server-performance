@@ -46,7 +46,7 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ObservableCollection<string> TopWaits { get; } = new();
+    public ObservableCollection<WaitStatisticViewModel> TopWaits { get; } = new();
 
     public ObservableCollection<string> Recommendations { get; } = new();
 
@@ -412,7 +412,11 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
         {
             foreach (var wait in server.Waits.Take(10))
             {
-                TopWaits.Add($"{wait.WaitType}: {wait.WaitTimeMs:N0} ms (signal {wait.SignalWaitTimeMs:N0} ms, tasks {wait.WaitingTasksCount:N0})");
+                TopWaits.Add(new WaitStatisticViewModel(
+                    wait.WaitType,
+                    wait.WaitTimeMs,
+                    wait.SignalWaitTimeMs,
+                    wait.WaitingTasksCount));
             }
         }
     }
@@ -534,4 +538,23 @@ public sealed class FullDiagnosticsViewModel : INotifyPropertyChanged, IAsyncDis
 
         await _monitor.DisposeAsync().ConfigureAwait(false);
     }
+}
+
+public sealed class WaitStatisticViewModel
+{
+    public WaitStatisticViewModel(string waitType, double waitTimeMs, double signalWaitTimeMs, long waitingTasks)
+    {
+        WaitType = waitType;
+        WaitTimeMs = waitTimeMs;
+        SignalWaitTimeMs = signalWaitTimeMs;
+        WaitingTasks = waitingTasks;
+    }
+
+    public string WaitType { get; }
+
+    public double WaitTimeMs { get; }
+
+    public double SignalWaitTimeMs { get; }
+
+    public long WaitingTasks { get; }
 }
