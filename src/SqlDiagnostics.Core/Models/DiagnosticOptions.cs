@@ -62,6 +62,8 @@ public sealed class DiagnosticOptions
 
     public bool IncludeServerConfiguration { get; set; }
 
+    public bool IncludeServerStateProbe { get; set; }
+
     /// <summary>
     /// Creates a deep copy of the options instance.
     /// </summary>
@@ -84,7 +86,8 @@ public sealed class DiagnosticOptions
         CaptureWaitStatistics = CaptureWaitStatistics,
         WaitStatsScope = WaitStatsScope,
         QueryToProfile = QueryToProfile,
-        IncludeServerConfiguration = IncludeServerConfiguration
+        IncludeServerConfiguration = IncludeServerConfiguration,
+        IncludeServerStateProbe = IncludeServerStateProbe
     };
 }
 
@@ -116,11 +119,16 @@ public sealed class DiagnosticOptionsBuilder
         bool includePoolAnalysis = false,
         bool monitorStability = false,
         TimeSpan? stabilityDuration = null,
-        TimeSpan? stabilityInterval = null)
+        TimeSpan? stabilityInterval = null,
+        bool includeServerStateProbe = true)
     {
         _options.Categories |= DiagnosticCategories.Connection;
         _options.IncludeConnectionPoolAnalysis = includePoolAnalysis;
         _options.MonitorConnectionStability = monitorStability;
+        if (includeServerStateProbe)
+        {
+            _options.IncludeServerStateProbe = true;
+        }
         if (stabilityDuration.HasValue)
         {
             _options.ConnectionStabilityDuration = stabilityDuration.Value;
@@ -170,6 +178,13 @@ public sealed class DiagnosticOptionsBuilder
         _options.Categories |= DiagnosticCategories.Server;
         _options.Categories |= DiagnosticCategories.Database;
         _options.IncludeServerConfiguration = includeConfiguration;
+        _options.IncludeServerStateProbe = true;
+        return this;
+    }
+
+    public DiagnosticOptionsBuilder WithServerStateProbe()
+    {
+        _options.IncludeServerStateProbe = true;
         return this;
     }
 

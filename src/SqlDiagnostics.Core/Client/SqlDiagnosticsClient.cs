@@ -26,6 +26,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
     private readonly NetworkDiagnostics _networkDiagnostics;
     private readonly QueryDiagnostics _queryDiagnostics;
     private readonly DatabaseDiagnostics _databaseDiagnostics;
+    private readonly ServerStateProbe _serverStateProbe;
     private readonly ServerDiagnostics _serverDiagnostics;
     private readonly ILogger? _logger;
     private readonly DiagnosticLogger? _diagnosticLogger;
@@ -39,6 +40,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
         _networkDiagnostics = new NetworkDiagnostics(loggerFactory?.CreateLogger<NetworkDiagnostics>());
         _queryDiagnostics = new QueryDiagnostics();
         _serverDiagnostics = new ServerDiagnostics(loggerFactory?.CreateLogger<ServerDiagnostics>());
+        _serverStateProbe = new ServerStateProbe(loggerFactory?.CreateLogger<ServerStateProbe>());
         _databaseDiagnostics = new DatabaseDiagnostics(loggerFactory?.CreateLogger<DatabaseDiagnostics>());
         _diagnosticLogger = diagnosticLogger;
     }
@@ -71,7 +73,8 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
     {
         var options = new DiagnosticOptions
         {
-            Categories = DiagnosticCategories.Connection | DiagnosticCategories.Network
+            Categories = DiagnosticCategories.Connection | DiagnosticCategories.Network,
+            IncludeServerStateProbe = true
         };
 
         return RunDiagnosticsInternalAsync(connectionString, options, cancellationToken);
@@ -220,6 +223,22 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
             }
         }
 
+        if (effectiveOptions.IncludeServerStateProbe && !NeedsSqlConnection(effectiveOptions.Categories))
+        {
+            try
+            {
+                using var stateConnection = new SqlConnection(connectionString);
+                report.ServerState = await _serverStateProbe
+                    .CollectAsync(stateConnection, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Server state probe failed.");
+                report.Metadata["server_state_skipped"] = ex.Message;
+            }
+        }
+
         if (NeedsSqlConnection(effectiveOptions.Categories))
         {
             using var connection = new SqlConnection(connectionString);
@@ -236,6 +255,21 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
                 {
                     _logger?.LogWarning(ex, "Network bandwidth measurement failed.");
                     report.Metadata["network_bandwidth_skipped"] = ex.Message;
+                }
+            }
+
+            if (effectiveOptions.IncludeServerStateProbe && report.ServerState is null)
+            {
+                try
+                {
+                    report.ServerState = await _serverStateProbe
+                        .CollectAsync(connection, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Server state probe failed.");
+                    report.Metadata["server_state_skipped"] = ex.Message;
                 }
             }
 
@@ -312,6 +346,7 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
         }
 
         ApplyBaselineComparison(report, effectiveOptions);
+        AnnotateServerState(report);
 
         if (effectiveOptions.GenerateRecommendations)
         {
@@ -324,6 +359,33 @@ public sealed class SqlDiagnosticsClient : IAsyncDisposable, IDisposable
 
     private static bool NeedsSqlConnection(DiagnosticCategories categories) =>
         (categories & (DiagnosticCategories.Query | DiagnosticCategories.Server | DiagnosticCategories.Database)) != 0;
+
+    private static void AnnotateServerState(DiagnosticReport report)
+    {
+        if (report.ServerState is null)
+        {
+            return;
+        }
+
+        if (report.ServerState.PendingRestart)
+        {
+            report.Metadata["server_pending_restart"] = true;
+        }
+
+        var offline = new List<string>();
+        foreach (var database in report.ServerState.OfflineDatabases)
+        {
+            if (!string.IsNullOrWhiteSpace(database.Name))
+            {
+                offline.Add(database.Name);
+            }
+        }
+
+        if (offline.Count > 0)
+        {
+            report.Metadata["server_offline_databases"] = offline;
+        }
+    }
 
     private void ApplyBaselineComparison(DiagnosticReport report, DiagnosticOptions options)
     {

@@ -20,6 +20,7 @@ public class QuickStartScenariosTests
         Assert.True(options.IncludeDnsResolution);
         Assert.True(options.IncludePortProbe);
         Assert.False(options.MeasureNetworkBandwidth);
+        Assert.True(options.IncludeServerStateProbe);
     }
 
     [Fact]
@@ -52,6 +53,7 @@ public class QuickStartScenariosTests
         Assert.True(options.CaptureWaitStatistics);
         Assert.Equal("SELECT 1", options.QueryToProfile);
         Assert.True(options.IncludeServerConfiguration);
+        Assert.True(options.IncludeServerStateProbe);
     }
 
     [Fact]
@@ -65,5 +67,6 @@ public class QuickStartScenariosTests
         Assert.True(options.CompareWithBaseline);
         Assert.True(options.Categories.HasFlag(DiagnosticCategories.Connection));
         Assert.True(options.Categories.HasFlag(DiagnosticCategories.Network));
+        Assert.True(options.IncludeServerStateProbe);
     }
 }
