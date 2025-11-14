@@ -20,6 +20,7 @@ public sealed class DiagnosticReport
     public QueryPlanAnalysis? QueryPlan { get; set; }
     public BlockingReport? Blocking { get; set; }
     public WaitStatistics? WaitStatistics { get; set; }
+    public ServerStateSnapshot? ServerState { get; set; }
     public ServerMetrics? Server { get; set; }
     public DatabaseMetrics? Databases { get; set; }
     public ConnectionPoolMetrics? ConnectionPool { get; set; }

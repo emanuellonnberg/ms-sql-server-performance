@@ -39,6 +39,7 @@ public class DiagnosticOptionsBuilderTests
         Assert.True(options.CaptureWaitStatistics);
         Assert.Equal("SELECT 42", options.QueryToProfile);
         Assert.True(options.IncludeServerConfiguration);
+        Assert.True(options.IncludeServerStateProbe);
     }
 
     [Fact]
@@ -52,5 +53,25 @@ public class DiagnosticOptionsBuilderTests
 
         Assert.Same(baseline, options.Baseline);
         Assert.True(options.CompareWithBaseline);
+}
+
+    [Fact]
+    public void WithConnectionTests_CanDisableServerStateProbe()
+    {
+        var options = new DiagnosticOptionsBuilder()
+            .WithConnectionTests(includeServerStateProbe: false)
+            .Build();
+
+        Assert.False(options.IncludeServerStateProbe);
+    }
+
+    [Fact]
+    public void WithServerStateProbe_SetsFlag()
+    {
+        var options = new DiagnosticOptionsBuilder()
+            .WithServerStateProbe()
+            .Build();
+
+        Assert.True(options.IncludeServerStateProbe);
     }
 }

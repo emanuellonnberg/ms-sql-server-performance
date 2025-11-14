@@ -2,7 +2,9 @@ using System;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -30,6 +32,8 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
     private string _networkLatencyDisplay = "—";
     private string _networkJitterDisplay = "—";
     private string _networkStatus = "No samples yet.";
+    private string _serverStatusSummary = "Server state unavailable.";
+    private string _serverGuidance = "Grant VIEW SERVER STATE to capture server health.";
 
     public RealtimeDiagnosticsViewModel()
     {
@@ -137,6 +141,18 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         private set => SetField(ref _networkStatus, value);
     }
 
+    public string ServerStatusSummary
+    {
+        get => _serverStatusSummary;
+        private set => SetField(ref _serverStatusSummary, value);
+    }
+
+    public string ServerGuidance
+    {
+        get => _serverGuidance;
+        private set => SetField(ref _serverGuidance, value);
+    }
+
     public bool HasRecommendations => Recommendations.Count > 0;
 
     public Visibility NoRecommendationsVisibility => HasRecommendations ? Visibility.Collapsed : Visibility.Visible;
@@ -212,6 +228,7 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
 
         ApplyConnectionMetrics(report.Connection);
         ApplyNetworkMetrics(report.Network);
+        ApplyServerState(report.ServerState);
         ApplyRecommendations(report);
     }
 
@@ -251,6 +268,72 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
                 : "High latency";
     }
 
+    private void ApplyServerState(ServerStateSnapshot? snapshot)
+    {
+        if (snapshot is null)
+        {
+            ServerStatusSummary = "Server state unavailable.";
+            ServerGuidance = "Grant VIEW SERVER STATE to capture server health.";
+            return;
+        }
+
+        var name = snapshot.ServerName ?? snapshot.MachineName ?? "SQL Server";
+        var primaryService = snapshot.Services.FirstOrDefault(service =>
+            service.ServiceName.Contains("SQL Server", StringComparison.OrdinalIgnoreCase))
+            ?? snapshot.Services.FirstOrDefault();
+
+        var status = primaryService?.Status ?? "Unknown";
+        var uptime = snapshot.SqlServerStartTimeUtc.HasValue
+            ? FormatRelativeDuration(DateTime.UtcNow - snapshot.SqlServerStartTimeUtc.Value)
+            : null;
+
+        var offlineDatabases = snapshot.OfflineDatabases.ToList();
+        var summaryBuilder = new StringBuilder();
+        summaryBuilder.Append(name);
+        summaryBuilder.Append(' ');
+        summaryBuilder.Append('•');
+        summaryBuilder.Append(' ');
+        summaryBuilder.Append(status);
+
+        if (!string.IsNullOrEmpty(uptime))
+        {
+            summaryBuilder.Append(' ');
+            summaryBuilder.Append('•');
+            summaryBuilder.Append(' ');
+            summaryBuilder.Append("Uptime ");
+            summaryBuilder.Append(uptime);
+        }
+
+        if (offlineDatabases.Count > 0)
+        {
+            summaryBuilder.Append(' ');
+            summaryBuilder.Append('•');
+            summaryBuilder.Append(' ');
+            summaryBuilder.AppendFormat("{0} offline DB(s)", offlineDatabases.Count);
+        }
+
+        ServerStatusSummary = summaryBuilder.ToString();
+
+        if (snapshot.PendingRestart)
+        {
+            ServerGuidance = "Configuration changes pending restart. Schedule a service restart.";
+        }
+        else if (offlineDatabases.Count > 0)
+        {
+            var preview = string.Join(", ", offlineDatabases
+                .Select(db => db.Name)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Take(3));
+            ServerGuidance = string.IsNullOrWhiteSpace(preview)
+                ? "One or more databases are offline. Investigate availability."
+                : $"Offline databases: {preview}{(offlineDatabases.Count > 3 ? ", …" : string.Empty)}";
+        }
+        else
+        {
+            ServerGuidance = "All databases online. No restart required.";
+        }
+    }
+
     private void ApplyRecommendations(DiagnosticReport report)
     {
         Recommendations.Clear();
@@ -287,6 +370,32 @@ public sealed class RealtimeDiagnosticsViewModel : INotifyPropertyChanged, IAsyn
         }
 
         return $"{duration.Value.TotalMilliseconds:N0} ms";
+    }
+
+    private static string? FormatRelativeDuration(TimeSpan? duration)
+    {
+        if (duration is null)
+        {
+            return null;
+        }
+
+        var value = duration.Value;
+        if (value.TotalDays >= 1)
+        {
+            return $"{value.TotalDays:0.#} days";
+        }
+
+        if (value.TotalHours >= 1)
+        {
+            return $"{value.TotalHours:0.#} hours";
+        }
+
+        if (value.TotalMinutes >= 1)
+        {
+            return $"{value.TotalMinutes:0.#} minutes";
+        }
+
+        return $"{Math.Max(value.TotalSeconds, 0):0.#} seconds";
     }
 
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
