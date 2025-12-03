@@ -40,7 +40,18 @@ public sealed class TestResult
 
     public string Name { get; }
     public bool Success { get; set; }
+    /// <summary>
+    /// Total duration of the probe execution.
+    /// </summary>
     public TimeSpan Duration { get; set; }
+    /// <summary>
+    /// UTC timestamp when the probe started.
+    /// </summary>
+    public DateTimeOffset? StartTimeUtc { get; set; }
+    /// <summary>
+    /// UTC timestamp when the probe completed.
+    /// </summary>
+    public DateTimeOffset? EndTimeUtc { get; set; }
     public string Details { get; set; } = string.Empty;
     public IReadOnlyList<string> Issues => _issues;
 

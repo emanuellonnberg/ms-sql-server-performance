@@ -9,6 +9,18 @@ using SqlDiagnostics.UI.Dialogs;
 namespace SqlDiagnostics.UI.Wpf;
 
 public partial class QuickTriageWindow : Window
+    private void OnRecommendationLinkClick(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"Unable to open link: {ex.Message}", "Quick Triage", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        e.Handled = true;
+    }
 {
     private readonly string _connectionString;
     private bool _initialized;

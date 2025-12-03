@@ -170,7 +170,7 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
     }
 
     private static TriageTestViewModel CreateTestViewModel(TestResult result) =>
-        new(result.Name, result.Success, result.Details, result.Duration, result.Issues);
+    new(result.Name, result.Success, result.Details, result.Duration, result.Issues, result.StartTimeUtc, result.EndTimeUtc, result.Metrics);
 
     private void ApplyFailureResult(string message)
     {
@@ -306,13 +306,16 @@ public sealed class QuickTriageViewModel : INotifyPropertyChanged
 
 public sealed class TriageTestViewModel
 {
-    public TriageTestViewModel(string name, bool success, string details, TimeSpan duration, IReadOnlyList<string> issues)
+    public TriageTestViewModel(string name, bool success, string details, TimeSpan duration, IReadOnlyList<string> issues, DateTimeOffset? startTime, DateTimeOffset? endTime, Dictionary<string, object>? metrics = null)
     {
         Name = name;
         Success = success;
         Details = details;
         Duration = duration;
         Issues = issues;
+        StartTimeUtc = startTime;
+        EndTimeUtc = endTime;
+        Metrics = metrics ?? new Dictionary<string, object>();
     }
 
     public string Name { get; }
@@ -320,6 +323,9 @@ public sealed class TriageTestViewModel
     public string Details { get; }
     public TimeSpan Duration { get; }
     public IReadOnlyList<string> Issues { get; }
+    public DateTimeOffset? StartTimeUtc { get; }
+    public DateTimeOffset? EndTimeUtc { get; }
+    public Dictionary<string, object> Metrics { get; }
 
     public string StatusText => Success ? "Pass" : "Fail";
 
@@ -327,5 +333,11 @@ public sealed class TriageTestViewModel
         ? $"{Duration.TotalMilliseconds:N0} ms"
         : "n/a";
 
+    public string TimingDisplay => StartTimeUtc.HasValue && EndTimeUtc.HasValue
+        ? $"{StartTimeUtc:HH:mm:ss} - {EndTimeUtc:HH:mm:ss}"
+        : "n/a";
+
     public bool HasIssues => Issues.Count > 0;
+
+    public bool HasMetrics => Metrics.Count > 0;
 }

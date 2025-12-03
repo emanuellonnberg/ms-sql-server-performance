@@ -9,6 +9,16 @@ namespace SqlDiagnostics.Core.Triage;
 /// </summary>
 public sealed class QuickTriageOptions
 {
+    /// <summary>
+    /// Optional logger for probe failures and slow operations.
+    /// </summary>
+    public SqlDiagnostics.Core.Logging.DiagnosticLogger? Logger { get; set; }
+
+    /// <summary>
+    /// Optional custom probe list. If set, these will be run in order instead of the default probes.
+    /// </summary>
+    public System.Collections.Generic.IList<(string Name, Func<string, CancellationToken, Task<TestResult>> Probe)>? CustomProbes { get; set; }
+
     public Func<string, CancellationToken, Task<TestResult>>? NetworkProbe { get; set; }
     public Func<string, CancellationToken, Task<TestResult>>? ConnectionProbe { get; set; }
     public Func<string, CancellationToken, Task<TestResult>>? QueryProbe { get; set; }
@@ -17,4 +27,8 @@ public sealed class QuickTriageOptions
 
     public TimeSpan SlowConnectionThreshold { get; set; } = TimeSpan.FromSeconds(1);
     public TimeSpan SlowQueryThreshold { get; set; } = TimeSpan.FromMilliseconds(500);
+    /// <summary>
+    /// If true, run independent probes in parallel to reduce triage time.
+    /// </summary>
+    public bool EnableParallelProbes { get; set; } = false;
 }

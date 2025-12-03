@@ -28,60 +28,138 @@ public static class QuickTriage
             throw new ArgumentException("Connection string must be provided.", nameof(connectionString));
         }
 
-        var effectiveOptions = options ?? new QuickTriageOptions();
+    var effectiveOptions = options ?? new QuickTriageOptions();
         var result = new TriageResult
         {
             StartedAtUtc = DateTime.UtcNow
         };
 
         var stopwatch = Stopwatch.StartNew();
-        var networkProbe = effectiveOptions.NetworkProbe ?? NetworkProbeAsync;
-        Func<string, CancellationToken, Task<TestResult>> connectionProbe =
-            effectiveOptions.ConnectionProbe ?? ((cs, token) => ConnectionProbeAsync(cs, effectiveOptions, token));
-        Func<string, CancellationToken, Task<TestResult>> queryProbe =
-            effectiveOptions.QueryProbe ?? ((cs, token) => QueryProbeAsync(cs, effectiveOptions, token));
-        var serverProbe = effectiveOptions.ServerProbe ?? ServerProbeAsync;
-        var blockingProbe = effectiveOptions.BlockingProbe ?? BlockingProbeAsync;
+        if (effectiveOptions.CustomProbes != null && effectiveOptions.CustomProbes.Count > 0)
+        {
+            // Run custom probes in order, store results by name
+            var probeResults = new System.Collections.Generic.Dictionary<string, TestResult>();
+            if (effectiveOptions.EnableParallelProbes)
+            {
+                var probeTasks = new System.Collections.Generic.List<Task<(string, TestResult)>>();
+                foreach (var probeTuple in effectiveOptions.CustomProbes)
+                {
+                    var name = probeTuple.Name;
+                    var probe = probeTuple.Probe;
+                    probeTasks.Add(Task.Run(async () => (name, await ExecuteProbeAsync(
+                        connectionString,
+                        probe,
+                        name,
+                        progress,
+                        $"Running custom probe: {name}...",
+                        cancellationToken,
+                        effectiveOptions).ConfigureAwait(false))));
+                }
+                var results = await Task.WhenAll(probeTasks);
+                foreach (var (name, testResult) in results)
+                {
+                    probeResults[name] = testResult;
+                }
+            }
+            else
+            {
+                foreach (var probeTuple in effectiveOptions.CustomProbes)
+                {
+                    var name = probeTuple.Name;
+                    var probe = probeTuple.Probe;
+                    var testResult = await ExecuteProbeAsync(
+                        connectionString,
+                        probe,
+                        name,
+                        progress,
+                        $"Running custom probe: {name}...",
+                        cancellationToken,
+                        effectiveOptions).ConfigureAwait(false);
+                    probeResults[name] = testResult;
+                }
+            }
+            // Map known names to result fields if present
+            result.Network = probeResults.TryGetValue("Network", out var n) ? n : result.Network;
+            result.Connection = probeResults.TryGetValue("Connection", out var c) ? c : result.Connection;
+            result.Query = probeResults.TryGetValue("Query", out var q) ? q : result.Query;
+            result.Server = probeResults.TryGetValue("Server", out var s) ? s : result.Server;
+            result.Blocking = probeResults.TryGetValue("Blocking", out var b) ? b : result.Blocking;
+        }
+        else
+        {
+            var networkProbe = effectiveOptions.NetworkProbe ?? NetworkProbeAsync;
+            Func<string, CancellationToken, Task<TestResult>> connectionProbe =
+                effectiveOptions.ConnectionProbe ?? ((cs, token) => ConnectionProbeAsync(cs, effectiveOptions, token));
+            Func<string, CancellationToken, Task<TestResult>> queryProbe =
+                effectiveOptions.QueryProbe ?? ((cs, token) => QueryProbeAsync(cs, effectiveOptions, token));
+            var serverProbe = effectiveOptions.ServerProbe ?? ServerProbeAsync;
+            var blockingProbe = effectiveOptions.BlockingProbe ?? BlockingProbeAsync;
 
-        result.Network = await ExecuteProbeAsync(
-            connectionString,
-            networkProbe,
-            "Network",
-            progress,
-            "Testing network connectivity...",
-            cancellationToken).ConfigureAwait(false);
+            if (effectiveOptions.EnableParallelProbes)
+            {
+                var tasks = new[]
+                {
+                    Task.Run(() => ExecuteProbeAsync(connectionString, networkProbe, "Network", progress, "Testing network connectivity...", cancellationToken, effectiveOptions)),
+                    Task.Run(() => ExecuteProbeAsync(connectionString, connectionProbe, "Connection", progress, "Testing SQL connection...", cancellationToken, effectiveOptions)),
+                    Task.Run(() => ExecuteProbeAsync(connectionString, queryProbe, "Query", progress, "Running diagnostic query...", cancellationToken, effectiveOptions)),
+                    Task.Run(() => ExecuteProbeAsync(connectionString, serverProbe, "Server", progress, "Checking server health...", cancellationToken, effectiveOptions)),
+                    Task.Run(() => ExecuteProbeAsync(connectionString, blockingProbe, "Blocking", progress, "Inspecting for blocking sessions...", cancellationToken, effectiveOptions))
+                };
+                await Task.WhenAll(tasks);
+                result.Network = tasks[0].Result;
+                result.Connection = tasks[1].Result;
+                result.Query = tasks[2].Result;
+                result.Server = tasks[3].Result;
+                result.Blocking = tasks[4].Result;
+            }
+            else
+            {
+                result.Network = await ExecuteProbeAsync(
+                    connectionString,
+                    networkProbe,
+                    "Network",
+                    progress,
+                    "Testing network connectivity...",
+                    cancellationToken,
+                    effectiveOptions).ConfigureAwait(false);
 
-        result.Connection = await ExecuteProbeAsync(
-            connectionString,
-            connectionProbe,
-            "Connection",
-            progress,
-            "Testing SQL connection...",
-            cancellationToken).ConfigureAwait(false);
+                result.Connection = await ExecuteProbeAsync(
+                    connectionString,
+                    connectionProbe,
+                    "Connection",
+                    progress,
+                    "Testing SQL connection...",
+                    cancellationToken,
+                    effectiveOptions).ConfigureAwait(false);
 
-        result.Query = await ExecuteProbeAsync(
-            connectionString,
-            queryProbe,
-            "Query",
-            progress,
-            "Running diagnostic query...",
-            cancellationToken).ConfigureAwait(false);
+                result.Query = await ExecuteProbeAsync(
+                    connectionString,
+                    queryProbe,
+                    "Query",
+                    progress,
+                    "Running diagnostic query...",
+                    cancellationToken,
+                    effectiveOptions).ConfigureAwait(false);
 
-        result.Server = await ExecuteProbeAsync(
-            connectionString,
-            serverProbe,
-            "Server",
-            progress,
-            "Checking server health...",
-            cancellationToken).ConfigureAwait(false);
+                result.Server = await ExecuteProbeAsync(
+                    connectionString,
+                    serverProbe,
+                    "Server",
+                    progress,
+                    "Checking server health...",
+                    cancellationToken,
+                    effectiveOptions).ConfigureAwait(false);
 
-        result.Blocking = await ExecuteProbeAsync(
-            connectionString,
-            blockingProbe,
-            "Blocking",
-            progress,
-            "Inspecting for blocking sessions...",
-            cancellationToken).ConfigureAwait(false);
+                result.Blocking = await ExecuteProbeAsync(
+                    connectionString,
+                    blockingProbe,
+                    "Blocking",
+                    progress,
+                    "Inspecting for blocking sessions...",
+                    cancellationToken,
+                    effectiveOptions).ConfigureAwait(false);
+            }
+        }
 
         stopwatch.Stop();
         result.Duration = stopwatch.Elapsed;
@@ -93,18 +171,45 @@ public static class QuickTriage
     }
 
     private static async Task<TestResult> ExecuteProbeAsync(
-        string connectionString,
-        Func<string, CancellationToken, Task<TestResult>> probe,
-        string testName,
-        IProgress<string>? progress,
-        string progressMessage,
-        CancellationToken cancellationToken)
+    string connectionString,
+    Func<string, CancellationToken, Task<TestResult>> probe,
+    string testName,
+    IProgress<string>? progress,
+    string progressMessage,
+    CancellationToken cancellationToken,
+    QuickTriageOptions options)
     {
         progress?.Report(progressMessage);
 
         try
         {
-            return await probe(connectionString, cancellationToken).ConfigureAwait(false);
+            var start = DateTimeOffset.UtcNow;
+            var result = await probe(connectionString, cancellationToken).ConfigureAwait(false);
+            var end = DateTimeOffset.UtcNow;
+            result.StartTimeUtc = start;
+            result.EndTimeUtc = end;
+            // Log slow operation if duration is available and logger is set
+            if (result.Duration > TimeSpan.Zero && options.Logger != null)
+            {
+                var slowThreshold = testName switch
+                {
+                    "Connection" => options.SlowConnectionThreshold,
+                    "Query" => options.SlowQueryThreshold,
+                    _ => TimeSpan.FromSeconds(2)
+                };
+                if (result.Duration > slowThreshold)
+                {
+                    options.Logger.LogEvent(new SqlDiagnostics.Core.Logging.DiagnosticEvent
+                    {
+                        EventType = SqlDiagnostics.Core.Logging.DiagnosticEventType.General,
+                        Severity = SqlDiagnostics.Core.Logging.EventSeverity.Warning,
+                        Message = $"{testName} probe was slow: {result.Duration.TotalMilliseconds:N0} ms.",
+                        Source = "QuickTriage",
+                        Data = result
+                    });
+                }
+            }
+            return result;
         }
         catch (OperationCanceledException)
         {
@@ -112,7 +217,20 @@ public static class QuickTriage
         }
         catch (Exception ex)
         {
-            return TestResult.Failure(testName, ex.Message);
+            var details = ex.Message;
+            if (ex.InnerException != null)
+            {
+                details += $" | Inner: {ex.InnerException.Message}";
+            }
+            options.Logger?.LogEvent(new SqlDiagnostics.Core.Logging.DiagnosticEvent
+            {
+                EventType = SqlDiagnostics.Core.Logging.DiagnosticEventType.Error,
+                Severity = SqlDiagnostics.Core.Logging.EventSeverity.Error,
+                Message = $"{testName} probe failed: {details}",
+                Source = "QuickTriage",
+                Data = details
+            });
+            return TestResult.Failure(testName, details);
         }
     }
 
@@ -139,6 +257,9 @@ public static class QuickTriage
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            test.Details = $"Pinging {host} (attempt {i + 1} of {attempts})...";
+            test.AddIssue($"Ping attempt {i + 1} started.");
+
             try
             {
                 var reply = await ping.SendPingAsync(host, 2000).ConfigureAwait(false);
@@ -146,11 +267,16 @@ public static class QuickTriage
                 {
                     successes++;
                     latencies.Add(reply.RoundtripTime);
+                    test.AddIssue($"Ping {i + 1}: Success ({reply.RoundtripTime} ms)");
+                }
+                else
+                {
+                    test.AddIssue($"Ping {i + 1}: {reply.Status}");
                 }
             }
             catch (PingException ex)
             {
-                test.AddIssue($"Ping attempt failed: {ex.Message}");
+                test.AddIssue($"Ping attempt {i + 1} failed: {ex.Message}");
             }
 
             await Task.Delay(200, cancellationToken).ConfigureAwait(false);
@@ -185,7 +311,8 @@ public static class QuickTriage
         try
         {
             var stopwatch = Stopwatch.StartNew();
-            using var connection = new SqlConnection(connectionString);
+            test.Details = "Opening SQL connection...";
+            await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
 
@@ -201,13 +328,23 @@ public static class QuickTriage
         catch (SqlException ex)
         {
             test.Success = false;
-            test.Details = $"SQL error {ex.Number}: {ex.Message}";
+            var details = $"SQL error {ex.Number}: {ex.Message}";
+            if (ex.InnerException != null)
+            {
+                details += $" | Inner: {ex.InnerException.Message}";
+            }
+            test.Details = details;
             test.AddIssue("Failed to open SQL connection.");
         }
         catch (Exception ex)
         {
             test.Success = false;
-            test.Details = ex.Message;
+            var details = ex.Message;
+            if (ex.InnerException != null)
+            {
+                details += $" | Inner: {ex.InnerException.Message}";
+            }
+            test.Details = details;
             test.AddIssue("Unexpected error opening SQL connection.");
         }
 
@@ -223,13 +360,15 @@ public static class QuickTriage
 
         try
         {
-            using var connection = new SqlConnection(connectionString);
+            test.Details = "Opening SQL connection for diagnostic query...";
+            await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
             connection.StatisticsEnabled = true;
 
             var stopwatch = Stopwatch.StartNew();
-            using var command = new SqlCommand("SELECT 1", connection);
+            test.Details = "Executing diagnostic query...";
+            await using var command = new SqlCommand("SELECT 1", connection);
             await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();
 
@@ -245,7 +384,12 @@ public static class QuickTriage
         catch (Exception ex)
         {
             test.Success = false;
-            test.Details = ex.Message;
+            var details = ex.Message;
+            if (ex.InnerException != null)
+            {
+                details += $" | Inner: {ex.InnerException.Message}";
+            }
+            test.Details = details;
             test.AddIssue("Failed to execute diagnostic query.");
         }
 
@@ -258,7 +402,8 @@ public static class QuickTriage
 
         try
         {
-            using var connection = new SqlConnection(connectionString);
+            test.Details = "Opening SQL connection for server health check...";
+            await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
             const string Query = @"
@@ -271,7 +416,8 @@ public static class QuickTriage
                 ) AS rb
                 ORDER BY cpu_percent DESC;";
 
-            using var command = new SqlCommand(Query, connection);
+            test.Details = "Querying server CPU utilisation...";
+            await using var command = new SqlCommand(Query, connection);
             var cpu = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as int?;
 
             test.Success = true;
@@ -287,7 +433,12 @@ public static class QuickTriage
         catch (Exception ex)
         {
             test.Success = false;
-            test.Details = ex.Message;
+            var details = ex.Message;
+            if (ex.InnerException != null)
+            {
+                details += $" | Inner: {ex.InnerException.Message}";
+            }
+            test.Details = details;
             test.AddIssue("Unable to retrieve server health information.");
         }
 
@@ -300,7 +451,8 @@ public static class QuickTriage
 
         try
         {
-            using var connection = new SqlConnection(connectionString);
+            test.Details = "Opening SQL connection for blocking check...";
+            await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
             const string Query = @"
@@ -308,7 +460,8 @@ public static class QuickTriage
                 FROM sys.dm_exec_requests 
                 WHERE blocking_session_id <> 0;";
 
-            using var command = new SqlCommand(Query, connection);
+            test.Details = "Querying for blocking sessions...";
+            await using var command = new SqlCommand(Query, connection);
             var blocked = (int)await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
 
             test.Success = true;
@@ -324,7 +477,12 @@ public static class QuickTriage
         catch (Exception ex)
         {
             test.Success = false;
-            test.Details = ex.Message;
+            var details = ex.Message;
+            if (ex.InnerException != null)
+            {
+                details += $" | Inner: {ex.InnerException.Message}";
+            }
+            test.Details = details;
             test.AddIssue("Unable to inspect blocking state.");
         }
 
@@ -343,7 +501,8 @@ public static class QuickTriage
                 Recommendations =
                 {
                     "Verify that the SQL Server host is reachable (firewall, VPN, routing).",
-                    "Check network latency and packet loss."
+                    "Check network latency and packet loss.",
+                    "See: https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/sql-server-network-configuration"
                 }
             };
         }
@@ -358,7 +517,8 @@ public static class QuickTriage
                 Recommendations =
                 {
                     "Confirm credentials and database accessibility.",
-                    "Ensure SQL Server is configured to accept remote connections."
+                    "Ensure SQL Server is configured to accept remote connections.",
+                    "See: https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/enable-or-disable-a-server-network-protocol"
                 }
             };
         }
@@ -373,7 +533,8 @@ public static class QuickTriage
                 Recommendations =
                 {
                     "Identify blocking sessions and review transaction scope.",
-                    "Consider collecting execution plans for blocked queries."
+                    "Consider collecting execution plans for blocked queries.",
+                    "See: https://learn.microsoft.com/en-us/sql/relational-databases/performance-monitor/analyzing-blocking"
                 }
             };
         }
@@ -388,7 +549,8 @@ public static class QuickTriage
                 Recommendations =
                 {
                     "Inspect DMV metrics for CPU and IO utilisation.",
-                    "Review workload patterns and index efficiency."
+                    "Review workload patterns and index efficiency.",
+                    "See: https://learn.microsoft.com/en-us/sql/relational-databases/performance/performance-dashboard"
                 }
             };
         }
@@ -403,7 +565,8 @@ public static class QuickTriage
                 Recommendations =
                 {
                     "Capture execution plan for slow queries.",
-                    "Validate statistics and consider indexing strategies."
+                    "Validate statistics and consider indexing strategies.",
+                    "See: https://learn.microsoft.com/en-us/sql/relational-databases/performance/query-performance-issues"
                 }
             };
         }

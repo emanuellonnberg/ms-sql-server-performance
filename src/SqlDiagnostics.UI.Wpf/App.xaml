@@ -4,5 +4,7 @@
              StartupUri="MainWindow.xaml">
     <Application.Resources>
          
+    <Application.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <local:RecommendationsToLinksConverter x:Key="RecommendationsToLinksConverter" xmlns:local="clr-namespace:SqlDiagnostics.UI.Wpf"/>
     </Application.Resources>
-</Application>
